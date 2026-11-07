@@ -27,15 +27,16 @@ docker compose down
 
 ## Как выпускать релизы
 
-Схема: рабочая ветка → pull request → CI → merge в `master` → тег `v1.0.0` на нужном коммите → опубликованный GitHub Release → проверки → Docker Hub → деплой.
+Схема: рабочая ветка → pull request → CI → merge в `master` → тег `v1.0.0` на нужном коммите → опубликованный GitHub Release → проверки → GitHub Container Registry (GHCR) → деплой.
 
 - CI собирает production-образ, проверяет Composer, Symfony, Twig, HTTP-ответы и соединение с настоящей PostgreSQL.
 - Release workflow принимает стабильные версии `vX.Y.Z`, проверяет, что коммит входит в `master`, и повторяет CI. Черновик, prerelease и просто push тега не запускают публикацию.
-- Публикуется `DOCKERHUB_USERNAME/notfive:vX.Y.Z` для `linux/amd64` и `linux/arm64`. Теги версий не переиспользовать; по возможности включить immutable tags в Docker Hub.
+- Публикуется `ghcr.io/knigor/notfive_backend:vX.Y.Z` для `linux/amd64` и `linux/arm64`. Имя автоматически получается из `github.repository` в нижнем регистре. Теги версий не переиспользовать.
+- Публикация использует встроенный `GITHUB_TOKEN` с `packages: write` только у задания `publish`. Отдельный токен реестра в GitHub Secrets не нужен. Образ связан с репозиторием через OCI label.
 - Сервер получает образ по digest `@sha256:…`, то есть именно результат этой сборки. Исходники и Composer на сервере не нужны.
 - После включения `DEPLOY_ENABLED=true` выполняется SSH-деплой. До этого релиз только публикует образ.
 
-В папке пока нет Git-репозитория. Создать репозиторий на GitHub и загрузить проект с веткой `master`; в коммит должны попасть `composer.lock`, `symfony.lock` и `.github/workflows`. Секреты из `.env.production` и локальные `vendor/var` исключены через `.gitignore`.
+Репозиторий: `Knigor/notFive_backend`, ветка `master`. Перед выпуском загрузить изменения workflow и приложения на GitHub; в коммит должны попасть `composer.lock`, `symfony.lock` и `.github/workflows`. Секреты из `.env.production` и локальные `vendor/var` исключены через `.gitignore`.
 
 ### Настройки GitHub
 
@@ -43,9 +44,13 @@ docker compose down
 
 | Тип | Имя | Значение |
 | --- | --- | --- |
-| Repository variable | `DOCKERHUB_USERNAME` | Аккаунт/namespace Docker Hub с репозиторием `notfive` |
-| Repository secret | `DOCKERHUB_TOKEN` | Docker Hub access token с правом записи в этот репозиторий |
 | Repository variable | `DEPLOY_ENABLED` | `true` только после подготовки сервера |
+
+Переменные `DOCKERHUB_USERNAME` и `DOCKERHUB_TOKEN` больше не используются. Не создавать свой secret `GITHUB_TOKEN`: GitHub выдаёт его автоматически на время запуска.
+
+Для первого выпуска оставить `DEPLOY_ENABLED=false`, опубликовать Release с новым тегом `vX.Y.Z` на `master` и дождаться успешного `publish` в Actions. Образ появится в Packages аккаунта/репозитория. Новый пакет по умолчанию приватный, даже если репозиторий публичный. Для приватного пакета настроить вход на VPS, как описано ниже; если образ решено открыть всем, видимость меняется отдельно в Package settings. Публичный образ включает код приложения.
+
+Если пакет с таким именем уже существовал и публикация получает `permission_denied`, проверить Package settings → Manage Actions access: у этого репозитория должно быть право записи. Политика организации также должна разрешать публикацию пакетов.
 
 Для деплоя создать Environment `production` и добавить в него secrets:
 
@@ -93,13 +98,19 @@ Apache внутри образа обслуживает PHP по HTTP. Поэт�
 
    Вписать результаты как разные значения `APP_SECRET` и `POSTGRES_PASSWORD`, указать свой `APP_IMAGE`, домен в `DEFAULT_URI`. Примеры паролей обязательно заменить перед первым запуском. После инициализации PostgreSQL простая правка `POSTGRES_PASSWORD` не меняет пароль внутри базы — потребуется `ALTER ROLE`.
 
-3. Если Docker Hub репозиторий приватный, выполнить на сервере `docker login` от пользователя деплоя с отдельным токеном только для чтения. Для публичного репозитория этот шаг необязателен.
+3. Для приватного пакета создать GitHub Personal access token **classic** с правом `read:packages`; владелец токена должен иметь доступ к пакету. При необходимости организации авторизовать токен для SSO. На VPS выполнить вход **от того же пользователя, которого использует SSH-деплой**:
+
+   ```sh
+   docker login ghcr.io --username Knigor
+   ```
+
+   В интерактивный запрос Password вставить токен, не пароль GitHub. Токен не записывать в `.env.production`, код или историю команд. Для публичного пакета вход не требуется. `GITHUB_TOKEN` workflow не предназначен для постоянного входа на VPS. [Аутентификация и видимость GHCR](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 4. После публикации первого образа запустить:
 
    ```sh
    cd /opt/notfive
-   sh deploy/deploy.sh your-dockerhub-user/notfive:v1.0.0
+   sh deploy/deploy.sh ghcr.io/knigor/notfive_backend:v1.0.0
    curl --fail http://127.0.0.1:8080/healthz
    ```
 
@@ -130,4 +141,4 @@ docker compose --env-file .env.production -f compose.prod.yaml exec -T database 
 
 Обычный деплой не пересоздаёт том базы. Обновление major-версии PostgreSQL требует отдельной миграции данных.
 
-Основа конфигурации: [Symfony 7.4 LTS](https://symfony.com/releases/7.4), [деплой Symfony](https://symfony.com/doc/7.4/deployment.html), [публикация Docker-образов из GitHub Actions](https://docs.docker.com/build/ci/github-actions/push-multi-registries/).
+Основа конфигурации: [Symfony 7.4 LTS](https://symfony.com/releases/7.4), [деплой Symfony](https://symfony.com/doc/7.4/deployment.html), [публикация образов в GHCR из GitHub Actions](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images).

@@ -3,7 +3,7 @@ set -eu
 cd /opt/notfive
 
 if [ "$#" -ne 1 ] || ! printf '%s\n' "$1" | grep -Eq '^[a-z0-9][a-z0-9._/-]*(:[a-zA-Z0-9_][a-zA-Z0-9_.-]*|@sha256:[a-f0-9]{64})$'; then
-    echo 'Usage: sh deploy/deploy.sh dockerhub-user/notfive:version (or image@sha256:digest)' >&2
+    echo 'Usage: sh deploy/deploy.sh ghcr.io/owner/repository:version (or image@sha256:digest)' >&2
     exit 1
 fi
 test -f .env.production

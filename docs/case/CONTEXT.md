@@ -6,7 +6,7 @@
 
 ## Что уже есть и что пока предложено
 
-Backend: Symfony 7.4, PHP 8.4, PostgreSQL 17, Docker Compose, приветствие и health check, подготовленный процесс релизов через GitHub Actions и Docker Hub. Frontend: Vue 3, TypeScript, Vite, Bun, Tailwind CSS 4, shadcn-vue, vue-i18n. Код обработки новостей ещё не реализован.
+Backend: Symfony 7.4, PHP 8.4, PostgreSQL 17, Docker Compose, приветствие и health check, подготовленный процесс релизов через GitHub Actions и GitHub Container Registry (GHCR). 7 ноября конфигурация публикации переведена с Docker Hub на GHCR по запросу пользователя; реальный выпуск ещё не проверен. Frontend: Vue 3, TypeScript, Vite, Bun, Tailwind CSS 4, shadcn-vue, vue-i18n. Код обработки новостей ещё не реализован.
 
 Исследование: [RESEARCH.md](RESEARCH.md). Предлагаемый контракт интерфейса: [FRONTEND_CONTRACT.md](FRONTEND_CONTRACT.md). Рекомендация для первого прототипа: YandexGPT Pro 5.1 и Python-модуль обработки за существующим Symfony API. Это предложение, не утверждённая миграция стека и не результат тестирования моделей. Учебного архива и ключей нет; качество, задержки и фактическая стоимость не измерены.
 
