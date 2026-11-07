@@ -34,6 +34,8 @@ jobs:
         run: |
           docker build --target dependencies -t notfive:dependencies .
           docker run --rm --entrypoint composer notfive:dependencies validate --strict
+      - name: Lint PHP
+        run: make lint-all
       - name: Start production stack
         run: docker compose -f compose.prod.yaml up -d --no-build --wait --wait-timeout 120
       - name: Validate Symfony and test HTTP/database
