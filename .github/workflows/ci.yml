@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_IMAGE: notfive:ci
+      APP_SECRET: ci-only-secret
+      POSTGRES_PASSWORD: ci-only-password
+      DEFAULT_URI: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Build production image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: notfive:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Validate Composer lock file
+        run: |
+          docker build --target dependencies -t notfive:dependencies .
+          docker run --rm --entrypoint composer notfive:dependencies validate --strict
+      - name: Start production stack
+        run: docker compose -f compose.prod.yaml up -d --no-build --wait --wait-timeout 120
+      - name: Validate Symfony and test HTTP/database
+        run: |
+          docker compose -f compose.prod.yaml exec -T app php bin/console lint:container
+          docker compose -f compose.prod.yaml exec -T app php bin/console lint:yaml config
+          docker compose -f compose.prod.yaml exec -T app php bin/console lint:twig templates
+          sh scripts/smoke.sh
+      - name: Container logs
+        if: failure()
+        run: docker compose -f compose.prod.yaml logs --tail=100
+      - name: Stop test stack
+        if: always()
+        run: docker compose -f compose.prod.yaml down --volumes

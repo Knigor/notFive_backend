@@ -1,0 +1,10 @@
+doctrine:
+    dbal:
+        driver: pdo_pgsql
+        host: '%env(POSTGRES_HOST)%'
+        port: 5432
+        dbname: '%env(POSTGRES_DB)%'
+        user: '%env(POSTGRES_USER)%'
+        password: '%env(POSTGRES_PASSWORD)%'
+        server_version: '17'
+        charset: UTF8

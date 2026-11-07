@@ -1,0 +1,19 @@
+
+###> symfony/framework-bundle ###
+/.env.local
+/.env.local.php
+/.env.*.local
+/config/secrets/prod/prod.decrypt.private.php
+/public/bundles/
+/var/
+/vendor/
+###< symfony/framework-bundle ###
+
+/.env.production
+/.DS_Store
+/.idea/
+/.env.production.*
+!/.env.production.example
+/.image.previous
+/.deploy.lock
+/config/reference.php
