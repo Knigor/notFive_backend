@@ -88,15 +88,19 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+          MAILER_DSN: ${{ secrets.MAILER_DSN }}
+          MAIL_FROM_ADDRESS: ${{ secrets.MAIL_FROM_ADDRESS }}
           IMAGE: ${{ needs.publish.outputs.image }}
         run: |
           [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
           [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
           [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]
+          [[ -n "$MAILER_DSN" ]]
+          [[ -n "$MAIL_FROM_ADDRESS" ]]
           [[ "$IMAGE" =~ ^[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
           ssh_opts=(-p "$DEPLOY_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)
-          tar -czf - compose.prod.yaml deploy/deploy.sh | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'tar -xzf - -C /opt/notfive'
-          ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sh /opt/notfive/deploy/deploy.sh '$IMAGE'"
+          tar -czf - compose.prod.yaml deploy/deploy.sh deploy/update-mailer-env.sh | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'tar -xzf - -C /opt/notfive'
+          printf '%s\n%s\n' "$MAILER_DSN" "$MAIL_FROM_ADDRESS" | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sh /opt/notfive/deploy/deploy.sh '$IMAGE' --mailer-from-stdin"
       - name: Remove SSH key
         if: always()
         run: rm -f ~/.ssh/id_ed25519

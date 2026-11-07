@@ -2,8 +2,8 @@
 set -eu
 cd /opt/notfive
 
-if [ "$#" -ne 1 ] || ! printf '%s\n' "$1" | grep -Eq '^[a-z0-9][a-z0-9._/-]*(:[a-zA-Z0-9_][a-zA-Z0-9_.-]*|@sha256:[a-f0-9]{64})$'; then
-    echo 'Usage: sh deploy/deploy.sh ghcr.io/owner/repository:version (or image@sha256:digest)' >&2
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ] || { [ "$#" -eq 2 ] && [ "$2" != '--mailer-from-stdin' ]; } || ! printf '%s\n' "$1" | grep -Eq '^[a-z0-9][a-z0-9._/-]*(:[a-zA-Z0-9_][a-zA-Z0-9_.-]*|@sha256:[a-f0-9]{64})$'; then
+    echo 'Usage: sh deploy/deploy.sh ghcr.io/owner/repository:version (or image@sha256:digest) [--mailer-from-stdin]' >&2
     exit 1
 fi
 test -f .env.production
@@ -11,6 +11,10 @@ test -f .env.production
 # Serialize manual and CI deployments on this server.
 exec 9>.deploy.lock
 flock -n 9 || { echo 'Another deployment is running.' >&2; exit 1; }
+
+if [ "$#" -eq 2 ]; then
+    sh deploy/update-mailer-env.sh
+fi
 
 export APP_IMAGE="$1"
 compose() { docker compose --env-file .env.production -f compose.prod.yaml "$@"; }
