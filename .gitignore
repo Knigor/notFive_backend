@@ -17,3 +17,4 @@
 /.image.previous
 /.deploy.lock
 /config/reference.php
+/.php-cs-fixer.cache
