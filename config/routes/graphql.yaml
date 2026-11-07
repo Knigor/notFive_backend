@@ -1,0 +1,6 @@
+graphql:
+    path: /api/graphql
+    controller: Overblog\GraphQLBundle\Controller\GraphController::endpointAction
+    defaults:
+        _format: json
+    methods: [POST]

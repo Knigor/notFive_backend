@@ -32,6 +32,14 @@ if ! compose up -d --no-build --wait --wait-timeout 120; then
     exit 1
 fi
 
+if ! compose exec -T app app-migrate; then
+    if [ -n "$previous" ]; then
+        echo "Migration failed; restoring $previous" >&2
+        APP_IMAGE="$previous" compose up -d --no-build --wait --wait-timeout 120 app
+    fi
+    exit 1
+fi
+
 # Persist the successfully deployed image for subsequent manual Compose commands.
 umask 077
 tmp="$(mktemp .env.production.XXXXXX)"

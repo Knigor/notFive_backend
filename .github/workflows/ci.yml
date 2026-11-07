@@ -16,6 +16,7 @@ jobs:
     env:
       APP_IMAGE: notfive:ci
       APP_SECRET: ci-only-secret
+      APP_CORS_ORIGIN: http://localhost:5173
       POSTGRES_PASSWORD: ci-only-password
       DEFAULT_URI: http://localhost:8080
     steps:
@@ -40,7 +41,11 @@ jobs:
           docker compose -f compose.prod.yaml exec -T app php bin/console lint:container
           docker compose -f compose.prod.yaml exec -T app php bin/console lint:yaml config
           docker compose -f compose.prod.yaml exec -T app php bin/console lint:twig templates
+          docker compose -f compose.prod.yaml exec -T app app-migrate
+          docker compose -f compose.prod.yaml exec -T app php bin/console graphql:dump-schema --format=graphql --with-descriptions --file=/tmp/schema.graphql
+          docker compose -f compose.prod.yaml exec -T app cmp schema.graphql /tmp/schema.graphql
           sh scripts/smoke.sh
+          sh scripts/graphql-smoke.sh
       - name: Container logs
         if: failure()
         run: docker compose -f compose.prod.yaml logs --tail=100
