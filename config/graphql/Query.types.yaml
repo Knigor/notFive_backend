@@ -1,0 +1,7 @@
+Query:
+    type: object
+    config:
+        fields:
+            ping:
+                type: Int!
+                resolve: '@=query("App\\GraphQL\\Query\\PingQuery::ping")'

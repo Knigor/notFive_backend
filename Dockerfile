@@ -28,8 +28,11 @@ COPY bin ./bin
 COPY config ./config
 COPY public ./public
 COPY src ./src
+COPY migrations ./migrations
+COPY schema.graphql ./schema.graphql
 COPY templates ./templates
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/app-entrypoint
+COPY --chmod=755 docker/migrate.sh /usr/local/bin/app-migrate
 RUN mkdir -p var && chown www-data:www-data var
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \

@@ -9,10 +9,13 @@
 !public/**
 !src/
 !src/**
+!migrations/
+!migrations/**
 !templates/
 !templates/**
 !composer.json
 !composer.lock
+!schema.graphql
 !symfony.lock
 !.env
 config/secrets/
