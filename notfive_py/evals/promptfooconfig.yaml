@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: Обязательные сценарии notFive через локальный API
+
+prompts:
+  - '{{caseId}}'
+
+providers:
+  - id: file://./provider.cjs
+    label: notFive API
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://./checks.cjs
+
+tests:
+  - vars: { caseId: duplicate }
+  - vars: { caseId: fewer_than_five }
+  - vars: { caseId: no_events }
+  - vars: { caseId: outside_window_and_update }
+  - vars: { caseId: headline_only }
+  - vars: { caseId: conflicting_reports }
+  - vars: { caseId: read_error }
+  - vars: { caseId: embedded_instruction }
+  - vars: { caseId: lower_boundary }
+  - vars: { caseId: duplicate_repeat }

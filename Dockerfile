@@ -23,7 +23,7 @@ RUN --mount=type=cache,id=notfive-composer,target=/tmp/composer-cache \
 FROM base AS production
 ENV APP_ENV=prod APP_DEBUG=0
 COPY --from=dependencies /app/vendor ./vendor
-COPY .env composer.json composer.lock symfony.lock ./
+COPY composer.json composer.lock symfony.lock ./
 COPY bin ./bin
 COPY config ./config
 COPY public ./public
@@ -33,7 +33,7 @@ COPY schema.graphql ./schema.graphql
 COPY templates ./templates
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/app-entrypoint
 COPY --chmod=755 docker/migrate.sh /usr/local/bin/app-migrate
-RUN mkdir -p var && chown www-data:www-data var
+RUN touch .env && mkdir -p var && chown www-data:www-data var
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
     CMD php -r '$r = @file_get_contents("http://127.0.0.1/healthz", false, stream_context_create(["http" => ["timeout" => 3]])); exit($r !== false && json_decode($r, true) === ["status" => "ok"] ? 0 : 1);'

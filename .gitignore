@@ -9,11 +9,10 @@
 /vendor/
 ###< symfony/framework-bundle ###
 
-/.env.production
+/.env.*
+!/.env.production.example
 /.DS_Store
 /.idea/
-/.env.production.*
-!/.env.production.example
 /.image.previous
 /.deploy.lock
 /config/reference.php
@@ -22,3 +21,15 @@
 /.php-cs-fixer.php
 /.php-cs-fixer.cache
 ###< friendsofphp/php-cs-fixer ###
+
+/.agents/skills/
+/notfive_py/**/__pycache__/
+/notfive_py/.venv/
+/.secrets/
+/notfive_py/.env*
+yandex-key.json
+service-account-key.json
+key.json
+*.key
+*.pem
+.venv
