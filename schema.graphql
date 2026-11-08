@@ -1,3 +1,25 @@
 type Query {
   ping: Int!
 }
+
+type Mutation {
+  startRun(input: RunStartInput!): RunStartPayload!
+}
+
+input RunStartInput {
+  file: Upload
+  sites: [String!]
+  controlTime: String
+}
+
+scalar Upload
+
+type RunStartPayload {
+  runId: ID!
+  imported: Int!
+  rejected: Int!
+  siteCount: Int!
+  inputKind: String!
+  dispatchStatus: String!
+  status: String!
+}

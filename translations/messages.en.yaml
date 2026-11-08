@@ -33,3 +33,26 @@ telegram:
 digest_email:
     invalid_content: Check the email content.
     invalid_request: Check the email details.
+dataset_import:
+    invalid_arguments: 'Provide a file path and a valid control time.'
+    failed: 'Import failed: %reason%'
+    completed: 'Run %run_id% created. Imported: %imported%; row errors: %failed%.'
+    error:
+        unsupported_format: 'Only JSON and CSV are supported.'
+        unreadable_file: 'The file could not be read.'
+        invalid_json: 'The file contains invalid JSON.'
+        invalid_structure: 'Required JSON fields are missing or have invalid types.'
+        invalid_period: 'The JSON period must be exactly 24 hours.'
+        invalid_timezone: 'The JSON timezone must be Europe/Moscow.'
+        invalid_csv: 'The CSV header or structure is invalid.'
+        invalid_timestamp: 'The time must use ISO 8601 with a timezone.'
+        file_too_large: 'The file exceeds 50 MB.'
+        storage_error: 'The original file could not be stored.'
+        control_time_conflict: 'The specified control time differs from the JSON metadata.'
+        csv_time_required: 'Specify --control-time for CSV.'
+run_start:
+    invalid_file: 'The file could not be uploaded.'
+    missing_input: 'Add a file or at least one site.'
+    multiple_inputs: 'Provide either a file or sites.'
+    control_time_required: 'Specify a control time for site collection.'
+    invalid_sites: 'Provide no more than five distinct HTTPS site URLs without paths or parameters.'

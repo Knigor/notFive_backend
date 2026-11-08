@@ -1,0 +1,10 @@
+services:
+  app:
+    networks:
+      - default
+      - digest
+
+networks:
+  digest:
+    external: true
+    name: notfive-digest

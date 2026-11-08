@@ -1,0 +1,65 @@
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  ping: Int!
+}
+
+type Mutation {
+  collect(input: CollectInput!): CollectResult!
+}
+
+enum InputKind {
+  DATASET
+  SITES
+  DEFAULT
+}
+
+input CollectInput {
+  kind: InputKind!
+  controlTime: String!
+  sites: [String!]
+  items: [MaterialInput!]
+}
+
+input MaterialInput {
+  id: String!
+  title: String
+  text: String
+  source: String
+  url: String
+  publishedAt: String
+  missing: [String!]!
+  error: String
+}
+
+type CollectResult {
+  runId: ID!
+  mode: InputKind!
+  sites: [String!]!
+  articles: [Article!]!
+  excluded: [ExcludedArticle!]!
+  warnings: [String!]!
+  researchJson: String
+}
+
+type Article {
+  id: String!
+  title: String
+  text: String
+  source: String
+  url: String
+  publishedAt: String
+  missing: [String!]!
+  error: String
+  dateEvidence: String
+  textTruncated: Boolean!
+}
+
+type ExcludedArticle {
+  id: String!
+  url: String!
+  reason: String!
+}

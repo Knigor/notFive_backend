@@ -20,9 +20,13 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-notfive}
       POSTGRES_USER: ${POSTGRES_USER:-notfive}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      DIGEST_SERVICE_TOKEN: ${DIGEST_SERVICE_TOKEN:-}
+      GO_SERVICE_URL: ${GO_SERVICE_URL:-}
     depends_on:
       database:
         condition: service_healthy
+    volumes:
+      - dataset_files:/app/var/datasets
     logging:
       driver: json-file
       options:
@@ -78,3 +82,4 @@ services:
 
 volumes:
   database_data:
+  dataset_files:

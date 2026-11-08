@@ -101,7 +101,7 @@ jobs:
           [[ -n "$TELEGRAM_BOT_TOKEN" ]]
           [[ "$IMAGE" =~ ^[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
           ssh_opts=(-p "$DEPLOY_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)
-          tar -czf - compose.prod.yaml deploy/deploy.sh deploy/update-mailer-env.sh deploy/update-telegram-env.sh | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'tar -xzf - -C /opt/notfive'
+          tar -czf - compose.prod.yaml compose.digest.yaml deploy/deploy.sh deploy/update-mailer-env.sh deploy/update-telegram-env.sh | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'tar -xzf - -C /opt/notfive'
           printf '%s\n' "$TELEGRAM_BOT_TOKEN" | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'sh /opt/notfive/deploy/update-telegram-env.sh'
           printf '%s\n%s\n' "$MAILER_DSN" "$MAIL_FROM_ADDRESS" | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sh /opt/notfive/deploy/deploy.sh '$IMAGE' --mailer-from-stdin"
       - name: Remove SSH key

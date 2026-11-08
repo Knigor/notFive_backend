@@ -78,7 +78,7 @@ func (s *Server) createCollection(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &input) {
 		return
 	}
-	control, err := time.Parse(time.RFC3339, input.ControlTime)
+	_, err := time.Parse(time.RFC3339, input.ControlTime)
 	if err != nil || strings.TrimSpace(input.Query) == "" || utf8.RuneCountInString(input.Query) > 2000 {
 		fail(w, 422, "invalid_input", "control_time must be RFC3339 with timezone; query must contain 1..2000 characters", "")
 		return
@@ -89,8 +89,20 @@ func (s *Server) createCollection(w http.ResponseWriter, r *http.Request) {
 	defer func() { <-s.slots }()
 	ctx, cancel := context.WithTimeout(r.Context(), s.cfg.Timeout)
 	defer cancel()
+	run, err := s.collectRun(ctx, input, s.cfg.SearchDomains)
+	s.complete(w, &run, err)
+}
+
+func (s *Server) collectRun(ctx context.Context, input researchRequest, domains []string) (Run, error) {
+	control, _ := time.Parse(time.RFC3339, input.ControlTime)
 	control = control.In(time.FixedZone("Europe/Moscow", 3*60*60))
-	modelInput := researchSearchInput(control, input.Query, s.cfg.SearchDomains, nil, maxResearchCandidates)
+	worker := *s
+	worker.cfg.SearchDomains = slices.Clone(domains)
+	if s.dynamicFetcher {
+		worker.fetcher = news.New(domains)
+	}
+	ctx = collector.WithDomains(ctx, domains)
+	modelInput := researchSearchInput(control, input.Query, domains, nil, maxResearchCandidates)
 	run := s.newRun("collection", input, researchInstructions)
 	gen, err := s.provider.Generate(ctx, researchInstructions, modelInput)
 	research := Research{
@@ -98,7 +110,7 @@ func (s *Server) createCollection(w http.ResponseWriter, r *http.Request) {
 		WindowStart: control.Add(-24 * time.Hour).Format(time.RFC3339Nano), ModelInput: modelInput, Generation: gen,
 		SearchAttempts: []ResearchSearchAttempt{{ModelInput: modelInput, Generation: gen}}, RejectedCandidates: []RejectedResearchCandidate{},
 		Discovery:      []ResearchDiscoveryAttempt{},
-		AllowedDomains: slices.Clone(s.cfg.SearchDomains),
+		AllowedDomains: slices.Clone(domains),
 		CitationURLs:   []string{}, CitationRefs: []string{}, SearchCalls: []json.RawMessage{},
 		Sources: []ResearchSource{}, ExcludedSources: []ResearchSource{}, Warnings: []string{},
 		Limitations: []string{
@@ -111,8 +123,7 @@ func (s *Server) createCollection(w http.ResponseWriter, r *http.Request) {
 	run.Research = &research
 	extractSearchTrace(&research)
 	if err != nil {
-		s.complete(w, &run, err)
-		return
+		return run, err
 	}
 	if !research.SearchObserved {
 		research.Warnings = append(research.Warnings, "Провайдер не передал web_search_call в трассе; факт поискового вызова не подтверждён аудитом.")
@@ -120,23 +131,22 @@ func (s *Server) createCollection(w http.ResponseWriter, r *http.Request) {
 	parsed := researchCandidates(gen.Text, &research)
 	research.SearchAttempts[0].Candidates = parsed
 	seen := map[string]bool{}
-	feedCandidates, htmlCandidates := s.discoverResearchSources(ctx, &research, control)
+	feedCandidates, htmlCandidates := worker.discoverResearchSources(ctx, &research, control)
 	candidates := appendArticleCandidates(nil, feedCandidates, &research, seen)
 	candidates = appendArticleCandidates(candidates, parsed, &research, seen)
 	candidates = appendArticleCandidates(candidates, htmlCandidates, &research, seen)
 	// One bounded clarification replaces listing URLs with article permalinks.
 	// It is not a transport retry and never expands the publication time window.
 	if len(research.RejectedCandidates) > 0 && len(candidates) < maxResearchCandidates {
-		candidates = s.refineArticleSearch(ctx, control, input.Query, candidates, &research, seen)
+		candidates = worker.refineArticleSearch(ctx, control, input.Query, candidates, &research, seen)
 	}
-	articles := s.fetchResearchSources(ctx, candidates, control, &research)
+	articles := worker.fetchResearchSources(ctx, candidates, control, &research)
 	if err := ctx.Err(); err != nil {
-		s.complete(w, &run, err)
-		return
+		return run, err
 	}
 	research.Status = "completed"
 	run.Collection = collectArticles(articles, &research)
-	s.complete(w, &run, nil)
+	return run, nil
 }
 
 func researchCandidates(text string, research *Research) []searchCandidate {

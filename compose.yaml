@@ -21,12 +21,15 @@ services:
       MAILER_DSN: ${LOCAL_MAILER_DSN:-smtp://mailpit:1025}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-notfive@localhost.invalid}
       TELEGRAM_API_BASE_URL: ${TELEGRAM_API_BASE_URL:-https://api.telegram.org}
+      DIGEST_SERVICE_TOKEN: ${DIGEST_SERVICE_TOKEN:-}
+      GO_SERVICE_URL: ${GO_SERVICE_URL:-}
     volumes:
       - ./src:/app/src:ro
       - ./templates:/app/templates:ro
       - ./translations:/app/translations:ro
       - ./config:/app/config:ro
       - ./public:/app/public:ro
+      - dataset_files:/app/var/datasets
     depends_on:
       database:
         condition: service_healthy
@@ -83,3 +86,4 @@ services:
 
 volumes:
   database_data:
+  dataset_files:

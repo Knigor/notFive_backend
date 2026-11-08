@@ -39,11 +39,12 @@ type Config struct {
 }
 
 type Server struct {
-	cfg      Config
-	provider collector.Provider
-	fetcher  SourceFetcher
-	slots    chan struct{}
-	mux      *http.ServeMux
+	cfg            Config
+	provider       collector.Provider
+	fetcher        SourceFetcher
+	dynamicFetcher bool
+	slots          chan struct{}
+	mux            *http.ServeMux
 }
 
 type Run struct {
@@ -83,13 +84,14 @@ func New(cfg Config, provider collector.Provider) (*Server, error) {
 		cfg.SearchDomains = []string{"securitylab.ru", "xakep.ru", "habr.com", "ptsecurity.com", "kaspersky.ru"}
 	}
 	cfg.SearchDomains = slices.Clone(cfg.SearchDomains)
-	if cfg.SourceFetcher == nil {
+	dynamicFetcher := cfg.SourceFetcher == nil
+	if dynamicFetcher {
 		cfg.SourceFetcher = news.New(cfg.SearchDomains)
 	}
 	if err := os.MkdirAll(filepath.Join(cfg.DataDir, "runs"), 0700); err != nil {
 		return nil, fmt.Errorf("create run storage: %w", err)
 	}
-	s := &Server{cfg: cfg, provider: provider, fetcher: cfg.SourceFetcher, slots: make(chan struct{}, cfg.MaxConcurrent), mux: http.NewServeMux()}
+	s := &Server{cfg: cfg, provider: provider, fetcher: cfg.SourceFetcher, dynamicFetcher: dynamicFetcher, slots: make(chan struct{}, cfg.MaxConcurrent), mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		respond(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -102,6 +104,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
 	s.mux.ServeHTTP(w, r)
+}
+
+func (s *Server) MountGraphQL(handler http.Handler) {
+	s.mux.Handle("POST /graphql", s.auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 52*1024*1024)
+		handler.ServeHTTP(w, r)
+	})))
 }
 
 func (s *Server) auth(next http.Handler) http.Handler {

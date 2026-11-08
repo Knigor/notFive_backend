@@ -15,6 +15,9 @@ import (
 	"time"
 	_ "time/tzdata"
 
+	gqlhandler "github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
+	"github.com/Knigor/notFive_backend/services/digest/graph"
 	"github.com/Knigor/notFive_backend/services/digest/internal/httpapi"
 	"github.com/Knigor/notFive_backend/services/digest/internal/yandex"
 )
@@ -71,9 +74,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	graphql := gqlhandler.New(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{Collector: handler}}))
+	graphql.AddTransport(transport.POST{})
+	handler.MountGraphQL(graphql)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	server := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: timeout + 15*time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024, BaseContext: func(net.Listener) context.Context { return ctx }}
+	server := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 60 * time.Second, WriteTimeout: timeout + 15*time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024, BaseContext: func(net.Listener) context.Context { return ctx }}
 	finished := make(chan error, 1)
 	go func() { finished <- server.ListenAndServe() }()
 	slog.Info("article collector listening", "address", addr)
