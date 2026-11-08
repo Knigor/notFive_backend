@@ -36,12 +36,17 @@ jobs:
           docker run --rm --entrypoint composer notfive:dependencies validate --strict
       - name: Lint PHP
         run: make lint-all
+      - name: Check Telegram polling
+        run: |
+          docker run --rm -v "$PWD":/app -w /app --entrypoint php notfive:dependencies -d zend.assertions=1 -d assert.exception=1 scripts/telegram-unit-smoke.php
+          docker run --rm -v "$PWD":/app -w /app --entrypoint php notfive:dependencies -d zend.assertions=1 -d assert.exception=1 scripts/telegram-poll-smoke.php
       - name: Start production stack
         run: docker compose -f compose.prod.yaml up -d --no-build --wait --wait-timeout 120
       - name: Validate Symfony and test HTTP/database
         run: |
           docker compose -f compose.prod.yaml exec -T app php bin/console lint:container
           docker compose -f compose.prod.yaml exec -T app php bin/console lint:yaml config
+          docker compose -f compose.prod.yaml exec -T app php bin/console lint:yaml translations
           docker compose -f compose.prod.yaml exec -T app php bin/console lint:twig templates
           docker compose -f compose.prod.yaml exec -T app app-migrate
           docker compose -f compose.prod.yaml exec -T app php bin/console graphql:dump-schema --format=graphql --with-descriptions --file=/tmp/schema.graphql

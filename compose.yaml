@@ -20,9 +20,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-notfive-local-only}
       MAILER_DSN: ${LOCAL_MAILER_DSN:-smtp://mailpit:1025}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-notfive@localhost.invalid}
+      TELEGRAM_API_BASE_URL: ${TELEGRAM_API_BASE_URL:-https://api.telegram.org}
     volumes:
       - ./src:/app/src:ro
       - ./templates:/app/templates:ro
+      - ./translations:/app/translations:ro
       - ./config:/app/config:ro
       - ./public:/app/public:ro
     depends_on:
@@ -30,6 +32,33 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
+
+  telegram:
+    profiles: ['telegram']
+    image: notfive:local
+    user: www-data
+    command: ['php', 'bin/console', 'telegram:poll', '--no-interaction']
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      disable: true
+    environment:
+      APP_ENV: dev
+      APP_DEBUG: '1'
+      APP_SECRET: ${APP_SECRET:-notfive-local-development-only}
+      POSTGRES_HOST: database
+      POSTGRES_DB: ${POSTGRES_DB:-notfive}
+      POSTGRES_USER: ${POSTGRES_USER:-notfive}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-notfive-local-only}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_API_BASE_URL: ${TELEGRAM_API_BASE_URL:-https://api.telegram.org}
+    volumes:
+      - ./src:/app/src:ro
+      - ./translations:/app/translations:ro
+      - ./config:/app/config:ro
+    depends_on:
+      database:
+        condition: service_healthy
 
   mailpit:
     image: axllent/mailpit:v1.27.4

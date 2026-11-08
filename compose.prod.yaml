@@ -29,6 +29,33 @@ services:
         max-size: '10m'
         max-file: '3'
 
+  telegram:
+    profiles: ['telegram']
+    image: ${APP_IMAGE:?Set APP_IMAGE to a release tag or digest}
+    restart: unless-stopped
+    user: www-data
+    command: ['php', 'bin/console', 'telegram:poll', '--no-interaction']
+    stop_grace_period: 30s
+    healthcheck:
+      disable: true
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: '0'
+      APP_SECRET: ${APP_SECRET:?Set APP_SECRET}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      POSTGRES_HOST: database
+      POSTGRES_DB: ${POSTGRES_DB:-notfive}
+      POSTGRES_USER: ${POSTGRES_USER:-notfive}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    depends_on:
+      database:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
   database:
     image: postgres:17-alpine
     restart: unless-stopped

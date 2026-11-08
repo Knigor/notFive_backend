@@ -10,7 +10,9 @@ use App\Mail\DigestEmailSender;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final readonly class DigestEmailController
 {
@@ -18,6 +20,7 @@ final readonly class DigestEmailController
         private DigestEmailComposer $composer,
         private DigestEmailSender $sender,
         private ValidatorInterface $validator,
+        private TranslatorInterface $translator,
     ) {
     }
 
@@ -25,12 +28,14 @@ final readonly class DigestEmailController
     public function preview(Request $request): JsonResponse
     {
         $draft = $this->readRequest($request);
+        $locale = $this->locale($request);
+        $violations = $this->validator->validate($draft);
 
-        if (0 !== count($this->validator->validate($draft))) {
-            return new JsonResponse(['error' => 'Invalid digest email content.'], 400, ['Cache-Control' => 'no-store']);
+        if (0 !== count($violations)) {
+            return $this->invalidResponse($violations, $locale, 'digest_email.invalid_content');
         }
 
-        $preview = $this->composer->compose($draft->subject, $draft->digest);
+        $preview = $this->composer->compose($draft->subject, $draft->digest, $locale);
 
         return new JsonResponse([
             'subject' => $preview->subject,
@@ -43,12 +48,14 @@ final readonly class DigestEmailController
     public function send(Request $request): JsonResponse
     {
         $draft = $this->readRequest($request);
+        $locale = $this->locale($request);
+        $violations = $this->validator->validate($draft, groups: ['Default', 'send']);
 
-        if (0 !== count($this->validator->validate($draft, groups: ['Default', 'send']))) {
-            return new JsonResponse(['error' => 'Invalid digest email request.'], 400, ['Cache-Control' => 'no-store']);
+        if (0 !== count($violations)) {
+            return $this->invalidResponse($violations, $locale, 'digest_email.invalid_request');
         }
 
-        $this->sender->send($draft->recipient, $this->composer->compose($draft->subject, $draft->digest));
+        $this->sender->send($draft->recipient, $this->composer->compose($draft->subject, $draft->digest, $locale));
 
         return new JsonResponse(['status' => 'sent'], 200, ['Cache-Control' => 'no-store']);
     }
@@ -65,5 +72,27 @@ final readonly class DigestEmailController
             is_string($digest) ? $digest : '',
             is_string($recipient) ? $recipient : '',
         );
+    }
+
+    private function locale(Request $request): string
+    {
+        return $request->getPreferredLanguage(['ru', 'en']) ?? 'ru';
+    }
+
+    private function invalidResponse(ConstraintViolationListInterface $violations, string $locale, string $message): JsonResponse
+    {
+        $errors = [];
+
+        foreach ($violations as $violation) {
+            $errors[] = [
+                'field' => $violation->getPropertyPath(),
+                'message' => $this->translator->trans($violation->getMessageTemplate(), $violation->getParameters(), 'validators', $locale),
+            ];
+        }
+
+        return new JsonResponse([
+            'error' => $this->translator->trans($message, locale: $locale),
+            'violations' => $errors,
+        ], 400, ['Cache-Control' => 'no-store']);
     }
 }
