@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -107,7 +106,7 @@ func pipelineFixture(t *testing.T, empty bool, failureStage string) (*Server, *[
 	return server, &calls
 }
 
-func TestPipelineProducesFilesAndHandlesEmptyCollection(t *testing.T) {
+func TestPipelineProducesStructuredDraftAndHandlesEmptyCollection(t *testing.T) {
 	t.Run("reject client query", func(t *testing.T) {
 		server, calls := pipelineFixture(t, true, "")
 		body := strings.TrimSuffix(pipelineTestRequest, "}") + `,"query":"override"}`
@@ -121,12 +120,17 @@ func TestPipelineProducesFilesAndHandlesEmptyCollection(t *testing.T) {
 			server, calls := pipelineFixture(t, empty, "")
 			response := call(server, "POST", "/v1/pipeline/web", pipelineTestRequest, serviceToken)
 			var result struct {
-				RunID    string            `json:"run_id"`
-				Status   string            `json:"status"`
-				News     NewsDataset       `json:"news"`
-				Analysis analysis.Result   `json:"analysis"`
-				Files    map[string]string `json:"files"`
-				Warnings []string          `json:"warnings"`
+				RunID    string          `json:"run_id"`
+				Status   string          `json:"status"`
+				News     NewsDataset     `json:"news"`
+				Analysis analysis.Result `json:"analysis"`
+				Draft    struct {
+					Events []struct {
+						GroupID string `json:"group_id"`
+					} `json:"events"`
+					SelectionSummary string `json:"selection_summary"`
+				} `json:"draft"`
+				Warnings []string `json:"warnings"`
 			}
 			if response.Code != http.StatusCreated || json.Unmarshal(response.Body.Bytes(), &result) != nil {
 				t.Fatalf("pipeline failed: %d %s", response.Code, response.Body.String())
@@ -134,13 +138,11 @@ func TestPipelineProducesFilesAndHandlesEmptyCollection(t *testing.T) {
 			if result.Status != "completed" || result.RunID != response.Header().Get("X-Run-ID") || result.News.ControlTime != "2026-11-08T13:00:00+03:00" || result.Analysis.ControlTime != result.News.ControlTime || result.Warnings == nil {
 				t.Fatal("pipeline lost status, period, run ID or warnings array")
 			}
-			for _, name := range []string{"digest.md", "post.md", "email.md", "journal.csv"} {
-				if result.Files[name] == "" {
-					t.Errorf("missing %s", name)
-				}
+			if strings.Contains(response.Body.String(), `"files"`) {
+				t.Fatal("Go still returns rendered files")
 			}
-			if len(result.Files) != 4 || !strings.HasSuffix(result.Files["email.md"], result.Files["digest.md"]) {
-				t.Fatal("four-file contract or full digest in email broken")
+			if !empty && (len(result.Draft.Events) != 1 || result.Draft.Events[0].GroupID != "G1") {
+				t.Fatal("selected event prose missing")
 			}
 			wantCalls := []string{"collection", "analysis", "export"}
 			wantArticles := 1
@@ -150,12 +152,12 @@ func TestPipelineProducesFilesAndHandlesEmptyCollection(t *testing.T) {
 			if !reflect.DeepEqual(*calls, wantCalls) || len(result.News.Items) != wantArticles {
 				t.Fatalf("wrong stage calls %v or article count %d", *calls, len(result.News.Items))
 			}
-			if !empty && !strings.Contains(result.Files["journal.csv"], result.News.Items[0].ID) {
-				t.Fatal("journal lost source ID")
+			if !empty && !reflect.DeepEqual(result.Analysis.Groups["G1"].IDs, []string{result.News.Items[0].ID}) {
+				t.Fatal("structured analysis lost source ID")
 			}
 			saved := call(server, "GET", response.Header().Get("Location"), "", serviceToken)
 			var run Run
-			if saved.Code != http.StatusOK || json.Unmarshal(saved.Body.Bytes(), &run) != nil || run.Mode != "pipeline" || run.Status != "completed" || run.Research == nil || run.Collection == nil || run.Analysis == nil || run.Export == nil || run.Analysis.Result == nil || run.Export.Result == nil || !reflect.DeepEqual(run.Export.Result.Files, result.Files) {
+			if saved.Code != http.StatusOK || json.Unmarshal(saved.Body.Bytes(), &run) != nil || run.Mode != "pipeline" || run.Status != "completed" || run.Research == nil || run.Collection == nil || run.Analysis == nil || run.Export == nil || run.Analysis.Result == nil || run.Export.Result == nil || run.Export.Result.SelectionSummary != result.Draft.SelectionSummary {
 				t.Fatal("complete pipeline audit not preserved")
 			}
 		})
@@ -270,16 +272,8 @@ func TestPipelineNewsFiltersDatesWithoutSearchAndKeepsEveryJournalRow(t *testing
 	if len(result.Analysis.Excluded) != 5 || !reflect.DeepEqual(result.Analysis.Groups["G1"].IDs, []string{base.ID}) {
 		t.Fatal("out-of-window or unreadable article reached analysis")
 	}
-	reader := csv.NewReader(strings.NewReader(strings.TrimPrefix(result.Files["journal.csv"], "\ufeff")))
-	reader.Comma = ';'
-	rows, err := reader.ReadAll()
-	if err != nil || len(rows) != len(input.Items)+1 {
-		t.Fatalf("journal lost excluded materials: rows=%d err=%v", len(rows), err)
-	}
-	for index, item := range input.Items {
-		if rows[index+1][0] != item.ID || index > 0 && rows[index+1][1] != "исключён" {
-			t.Fatalf("incorrect journal decision for %s: %v", item.ID, rows[index+1])
-		}
+	if len(result.Draft.Events) != 1 || result.Draft.Events[0].GroupID != "G1" {
+		t.Fatal("draft event missing")
 	}
 	var run Run
 	saved := call(server, "GET", response.Header().Get("Location"), "", serviceToken)

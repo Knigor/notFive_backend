@@ -68,3 +68,30 @@ auth:
     admin_bootstrap:
         invalid: 'Логин или пароль администратора для развёртывания не настроены.'
         ready: 'Учётная запись администратора готова.'
+digest_export:
+    msk: МСК
+    heading: 'Дайджест по кибербезопасности: %period%'
+    control_time: 'Контрольное время: %time% МСК.'
+    post_heading: 'Кибербезопасность за сутки: %period%'
+    count_one: 'В выпуске одно событие.'
+    count_few: 'В выпуске %count% события.'
+    count_many: 'В выпуске %count% событий.'
+    no_events: 'Подходящих событий за период нет.'
+    essence: Суть
+    consequences: Последствия
+    sources: Источники
+    reason: Обоснование
+    unknown_date: дата не подтверждена
+    subject: 'Дайджест по кибербезопасности за %time%'
+    email_subject: Тема
+    period: Период
+    import_error: Ошибка входной строки.
+    length_warning: 'Файл %file% превышает лимит %limit% знаков.'
+    status:
+        included: включён
+        merged: объединён
+        excluded: исключён
+    not_selected: 'Материал не выбран для выпуска.'
+    invalid_run_id: 'Некорректный идентификатор запуска.'
+    build_failed: 'Не удалось сформировать выпуск. Проверьте журнал приложения и состояние запуска.'
+    built: 'Выпуск %run_id% сформирован. Событий: %events%.'

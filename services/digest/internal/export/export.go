@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"maps"
 	"net/url"
 	"slices"
 	"strings"
@@ -123,9 +122,9 @@ func validURL(value string) bool {
 }
 
 func Export(ctx context.Context, provider collector.Provider, prepared Prepared) (Result, collector.Generation, error) {
-	result := Result{Files: map[string]string{}, Warnings: append([]string{}, prepared.Request.Analysis.Warnings...)}
+	result := Result{Events: []EventText{}, Warnings: append([]string{}, prepared.Request.Analysis.Warnings...)}
 	generation := collector.Generation{}
-	response := modelResult{Events: []eventText{}}
+	response := modelResult{Events: []EventText{}}
 	if len(prepared.Request.Analysis.RecommendedOrder) > 0 {
 		var err error
 		generation, err = provider.Generate(ctx, Instructions, prepared.Input)
@@ -136,7 +135,7 @@ func Export(ctx context.Context, provider collector.Provider, prepared Prepared)
 			return result, generation, ErrInvalidModelOutput
 		}
 	}
-	texts := map[string]eventText{}
+	texts := map[string]EventText{}
 	for _, event := range response.Events {
 		if event.GroupID == "" {
 			return result, generation, ErrInvalidModelOutput
@@ -150,26 +149,17 @@ func Export(ctx context.Context, provider collector.Provider, prepared Prepared)
 		}
 		texts[event.GroupID] = event
 	}
-	issues := maps.Clone(prepared.issues)
 	for _, id := range prepared.Request.Analysis.RecommendedOrder {
 		text, exists := texts[id]
 		if !exists || strings.TrimSpace(text.Title) == "" || strings.TrimSpace(text.Summary) == "" || strings.TrimSpace(text.Consequences) == "" || strings.TrimSpace(text.Post) == "" || strings.TrimSpace(text.Reason) == "" {
 			return result, generation, ErrInvalidModelOutput
 		}
-		if len(issues[id]) > 0 {
-			result.Warnings = append(result.Warnings, message(prepared.Locale, "unconfirmed_group", id, strings.Join(issues[id], ", ")))
+		if len(prepared.issues[id]) > 0 {
+			result.Warnings = append(result.Warnings, message(prepared.Locale, "unconfirmed_group", id, strings.Join(prepared.issues[id], ", ")))
 		}
+		result.Events = append(result.Events, text)
 	}
-	prepared.issues = issues
-	result.Files = render(prepared, texts, response.SelectionSummary)
-	for _, file := range []struct {
-		name  string
-		limit int
-	}{{"digest.md", 4000}, {"post.md", 2000}} {
-		if length := visibleLength(result.Files[file.name]); length > file.limit {
-			result.Warnings = append(result.Warnings, message(prepared.Locale, "length_limit", file.name, length, file.limit))
-		}
-	}
+	result.SelectionSummary = response.SelectionSummary
 	return result, generation, nil
 }
 

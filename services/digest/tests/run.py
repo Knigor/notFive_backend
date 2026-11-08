@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Go and Python tests without copying test files into production packages."""
+"""Run Go tests without copying test files into production packages."""
 
 import json
 from pathlib import Path
@@ -30,7 +30,6 @@ def main():
         commands = [
             ["go", "vet", "-overlay", str(overlay), "./..."],
             ["go", "test", "-overlay", str(overlay), "-race", "./..."],
-            [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"],
         ]
         for command in commands:
             subprocess.run(command, cwd=ROOT, check=True)

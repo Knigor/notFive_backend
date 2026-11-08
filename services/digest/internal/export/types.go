@@ -1,4 +1,4 @@
-// Package export turns a saved analysis and its source dataset into deliverable files.
+// Package export asks the model for structured publication prose.
 package export
 
 import "github.com/Knigor/notFive_backend/services/digest/internal/analysis"
@@ -9,8 +9,9 @@ type Request struct {
 }
 
 type Result struct {
-	Files    map[string]string `json:"files"`
-	Warnings []string          `json:"warnings"`
+	SelectionSummary string      `json:"selection_summary"`
+	Events           []EventText `json:"events"`
+	Warnings         []string    `json:"warnings"`
 }
 
 type Prepared struct {
@@ -21,7 +22,7 @@ type Prepared struct {
 	excluded map[string]string
 }
 
-type eventText struct {
+type EventText struct {
 	GroupID      string `json:"group_id"`
 	Title        string `json:"title"`
 	Summary      string `json:"summary"`
@@ -32,5 +33,5 @@ type eventText struct {
 
 type modelResult struct {
 	SelectionSummary string      `json:"selection_summary"`
-	Events           []eventText `json:"events"`
+	Events           []EventText `json:"events"`
 }

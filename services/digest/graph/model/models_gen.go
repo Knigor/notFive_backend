@@ -39,6 +39,45 @@ type CollectResult struct {
 	ResearchJSON *string            `json:"researchJson,omitempty"`
 }
 
+type DigestContradiction struct {
+	Description string   `json:"description"`
+	SourceIds   []string `json:"sourceIds"`
+}
+
+type DigestEvent struct {
+	GroupID      string `json:"groupId"`
+	Title        string `json:"title"`
+	Summary      string `json:"summary"`
+	Consequences string `json:"consequences"`
+	Post         string `json:"post"`
+	Reason       string `json:"reason"`
+}
+
+type DigestEvidence struct {
+	ArticleID string `json:"articleId"`
+	Quote     string `json:"quote"`
+}
+
+type DigestExclusion struct {
+	ArticleID string `json:"articleId"`
+	Reason    string `json:"reason"`
+}
+
+type DigestFact struct {
+	Statement string            `json:"statement"`
+	SourceIds []string          `json:"sourceIds"`
+	Evidence  []*DigestEvidence `json:"evidence"`
+}
+
+type DigestGroup struct {
+	ID              string                 `json:"id"`
+	Name            string                 `json:"name"`
+	Ids             []string               `json:"ids"`
+	Facts           []*DigestFact          `json:"facts"`
+	Contradictions  []*DigestContradiction `json:"contradictions"`
+	SelectionReason string                 `json:"selectionReason"`
+}
+
 type ExcludedArticle struct {
 	ID     string `json:"id"`
 	URL    string `json:"url"`
@@ -57,6 +96,28 @@ type MaterialInput struct {
 }
 
 type Mutation struct {
+}
+
+type PrepareDigestInput struct {
+	ControlTime string           `json:"controlTime"`
+	Items       []*MaterialInput `json:"items"`
+}
+
+type PreparedDigest struct {
+	Groups                []*DigestGroup     `json:"groups"`
+	RecommendedOrder      []string           `json:"recommendedOrder"`
+	Excluded              []*DigestExclusion `json:"excluded"`
+	Events                []*DigestEvent     `json:"events"`
+	SelectionSummary      string             `json:"selectionSummary"`
+	Warnings              []string           `json:"warnings"`
+	AnalysisModel         string             `json:"analysisModel"`
+	DraftModel            string             `json:"draftModel"`
+	AnalysisPromptVersion string             `json:"analysisPromptVersion"`
+	DraftPromptVersion    string             `json:"draftPromptVersion"`
+	AnalysisUsageJSON     *string            `json:"analysisUsageJson,omitempty"`
+	DraftUsageJSON        *string            `json:"draftUsageJson,omitempty"`
+	AnalysisDurationMs    int                `json:"analysisDurationMs"`
+	DraftDurationMs       int                `json:"draftDurationMs"`
 }
 
 type Query struct {

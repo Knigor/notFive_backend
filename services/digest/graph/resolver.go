@@ -1,20 +1,23 @@
 package graph
 
+// THIS CODE WILL BE UPDATED WITH SCHEMA CHANGES. PREVIOUS IMPLEMENTATION FOR SCHEMA CHANGES WILL BE KEPT IN THE COMMENT SECTION. IMPLEMENTATION FOR UNCHANGED SCHEMA WILL BE KEPT.
+
 import (
 	"context"
 
 	"github.com/Knigor/notFive_backend/services/digest/graph/model"
 )
 
-type Collector interface {
-	Collect(context.Context, model.CollectInput) (*model.CollectResult, error)
-}
-
 type Resolver struct{ Collector Collector }
 
 // Collect is the resolver for the collect field.
 func (r *mutationResolver) Collect(ctx context.Context, input model.CollectInput) (*model.CollectResult, error) {
 	return r.Collector.Collect(ctx, input)
+}
+
+// PrepareDigest is the resolver for the prepareDigest field.
+func (r *mutationResolver) PrepareDigest(ctx context.Context, input model.PrepareDigestInput) (*model.PreparedDigest, error) {
+	return r.Collector.PrepareDigest(ctx, input)
 }
 
 // Ping is the resolver for the ping field.
