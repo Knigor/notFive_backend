@@ -1,0 +1,766 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "notFive Article Collector API",
+    "version": "1.0.0",
+    "description": "Внутренний HTTP API Go-сборщика. Получает статьи и подтверждает даты в (T−24h,T]. Смысловой отбор, группировка и генерация дайджеста выполняются вызывающим приложением. POST синхронный и неидемпотентный; автоматические повторы могут повторно расходовать токены Yandex."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8081",
+      "description": "С хоста или через локальный порт Compose"
+    },
+    {
+      "url": "http://digest:8081",
+      "description": "Из контейнера, подключённого к Docker-сети notfive-digest"
+    }
+  ],
+  "security": [
+    {
+      "serviceBearer": []
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Проверить HTTP-сервер без обращения к модели",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Сервер работает",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/collect": {
+      "post": {
+        "operationId": "collectArticles",
+        "summary": "Найти и загрузить статьи за 24 часа до контрольного времени",
+        "description": "Тело до 1 MiB. Домены и модель задаёт оператор сервиса. До 12 выбранных для загрузки URL; пустой articles является успешным результатом. Для REQUEST_TIMEOUT=180s используйте общий таймаут клиента не меньше 200 секунд. Повторный POST создаёт новый запуск.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Сбор завершён и сохранён; статьи в collection.articles",
+            "headers": {
+              "Location": {
+                "description": "Путь GET для сохранённого запуска",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^/v1/runs/[a-f0-9]{32}$"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionRun"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json: некорректный JSON, несколько JSON-значений или неизвестные поля",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized: отсутствует или не подходит токен",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Bearer"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "generation_failed: запрос отменён; run_id присутствует, если ошибка сохранена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "invalid_json: тело больше 1 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "invalid_input: control_time не RFC3339 с поясом либо query пустой/длиннее 2000 символов",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "busy: все слоты заняты",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "5"
+                  ]
+                },
+                "description": "Число секунд"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "storage_error: не удалось сохранить результат; нет подтверждения сохранения",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "generation_failed: ошибка поиска/провайдера; run_id присутствует, если ошибка сохранена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "generation_failed: истёк REQUEST_TIMEOUT; run_id присутствует, если ошибка сохранена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runs/{id}": {
+      "get": {
+        "operationId": "getRun",
+        "summary": "Получить сохранённый запуск без нового поиска",
+        "description": "HTTP 200 означает успешное чтение. Поле status может быть failed. Получение происходит по известному id, API фоновых заданий или поиска последнего запуска нет.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Сохранённый результат или ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized: отсутствует или не подходит токен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found: неизвестный либо некорректный id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "storage_error: не удалось прочитать запуск",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "serviceBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "DIGEST_SERVICE_TOKEN, минимум 32 символа. Не ключ Yandex и не токен пользователя браузера."
+      }
+    },
+    "schemas": {
+      "CollectRequest": {
+        "type": "object",
+        "required": [
+          "control_time",
+          "query"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "control_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "T с явным часовым поясом. Нижняя граница T−24h исключена; T включено.",
+            "example": "2026-11-08T13:01:59+03:00"
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "pattern": "\\S",
+            "description": "Тема поиска. Строка только из пробелов не допускается.",
+            "example": "Новости кибербезопасности за заданные 24 часа"
+          }
+        }
+      },
+      "Article": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "text",
+          "source",
+          "url",
+          "published_at",
+          "date_evidence",
+          "text_truncated"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 12000,
+            "description": "Извлечённый текст страницы, без генерации и пересказа моделью."
+          },
+          "source": {
+            "type": "string",
+            "description": "Домен конечного URL"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Конечная HTTPS-ссылка на публикацию"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Подтверждённое исходное время публикации, нормализованное в Москву."
+          },
+          "date_evidence": {
+            "type": "string",
+            "description": "Метаданные HTML, подтверждающие дату."
+          },
+          "text_truncated": {
+            "type": "boolean",
+            "description": "При извлечении достигнуто ограничение длины текста или заголовка."
+          }
+        }
+      },
+      "SourceAudit": {
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "requested_url",
+          "title",
+          "source",
+          "text_truncated",
+          "text_characters",
+          "status"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Ссылка источника; у исключённых кандидатов может быть недопустимым URL."
+          },
+          "requested_url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "date_evidence": {
+            "type": "string"
+          },
+          "text_truncated": {
+            "type": "boolean"
+          },
+          "text_characters": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "eligible",
+              "excluded"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ExcludedArticle": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SourceAudit"
+          },
+          {
+            "type": "object",
+            "required": [
+              "reason"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "excluded"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        ]
+      },
+      "CollectionCounts": {
+        "type": "object",
+        "required": [
+          "candidates",
+          "accepted",
+          "excluded"
+        ],
+        "additionalProperties": false,
+        "description": "Выбранные для загрузки URL: candidates = accepted + excluded. Не размер поискового индекса.",
+        "properties": {
+          "candidates": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 12
+          },
+          "accepted": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 12
+          },
+          "excluded": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 12
+          }
+        }
+      },
+      "Collection": {
+        "type": "object",
+        "required": [
+          "control_time",
+          "window_start",
+          "articles",
+          "excluded_articles",
+          "counts",
+          "warnings"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "control_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "window_start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Исключённая нижняя граница окна (T−24h,T]."
+          },
+          "articles": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+              "$ref": "#/components/schemas/Article"
+            },
+            "description": "Подтверждены загрузка и дата, не смысловая принадлежность к ИБ."
+          },
+          "excluded_articles": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+              "$ref": "#/components/schemas/ExcludedArticle"
+            }
+          },
+          "counts": {
+            "$ref": "#/components/schemas/CollectionCounts"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DiscoveryAttempt": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "rss",
+              "html"
+            ]
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "found": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outside_window": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "error": {
+            "type": "string",
+            "description": "Ошибка одной ленты/раздела не обязательно прерывает сбор."
+          }
+        }
+      },
+      "ResearchAudit": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Аудит поисковых вызовов, ссылок и RSS/HTML. Содержит недоверенные внешние данные. Ключи коллекции нужно читать из collection, не из сырого ответа модели.",
+        "properties": {
+          "prompt_version": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed"
+            ]
+          },
+          "control_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "window_start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "allowed_domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "model_input": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "search_attempts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "search_observed": {
+            "type": "boolean"
+          },
+          "search_calls": {
+            "type": "array",
+            "items": {}
+          },
+          "citation_urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "citation_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "discovery": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryAttempt"
+            }
+          },
+          "rejected_candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceAudit"
+            }
+          },
+          "excluded_sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceAudit"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Run": {
+        "type": "object",
+        "required": [
+          "id",
+          "mode",
+          "status",
+          "created_at",
+          "completed_at",
+          "input",
+          "input_sha256",
+          "instructions",
+          "settings",
+          "cost"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "mode": {
+            "type": "string",
+            "description": "Новые запуски: collection. Сохранённые старые запуски могут иметь другой mode."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "input": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "input_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "cost": {
+            "type": "number",
+            "nullable": true,
+            "description": "Фактическая стоимость неизвестна; сейчас null."
+          },
+          "error": {
+            "type": "string"
+          },
+          "upstream_status": {
+            "type": "integer"
+          },
+          "collection": {
+            "$ref": "#/components/schemas/Collection"
+          },
+          "research": {
+            "$ref": "#/components/schemas/ResearchAudit"
+          }
+        }
+      },
+      "CollectionRun": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Run"
+          },
+          {
+            "type": "object",
+            "required": [
+              "collection",
+              "research"
+            ],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "collection"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "completed"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error",
+          "message"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$",
+            "description": "Только если ошибочный запуск сохранён."
+          }
+        }
+      }
+    }
+  }
+}

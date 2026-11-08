@@ -1,0 +1,42 @@
+name: notfive-digest
+
+services:
+  digest:
+    image: ${DIGEST_IMAGE:?Set DIGEST_IMAGE to a release tag or digest}
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${DIGEST_HTTP_PORT:-8081}:8081'
+    environment:
+      LISTEN_ADDR: ':8081'
+      DATA_DIR: /data
+      DIGEST_SERVICE_TOKEN: ${DIGEST_SERVICE_TOKEN:?Set DIGEST_SERVICE_TOKEN}
+      YANDEX_API_KEY: ${YANDEX_API_KEY:?Set YANDEX_API_KEY}
+      YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:?Set YANDEX_FOLDER_ID}
+      YANDEX_MODEL: ${YANDEX_MODEL:-yandexgpt-5.1}
+      YANDEX_BASE_URL: ${YANDEX_BASE_URL:-https://ai.api.cloud.yandex.net/v1}
+      YANDEX_SEARCH_DOMAINS: ${YANDEX_SEARCH_DOMAINS:-securitylab.ru,xakep.ru,habr.com,ptsecurity.com,kaspersky.ru}
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-180s}
+      MAX_CONCURRENT: ${MAX_CONCURRENT:-2}
+      MAX_OUTPUT_TOKENS: ${MAX_OUTPUT_TOKENS:-8000}
+    volumes:
+      - data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+volumes:
+  data:
+    name: notfive-digest_data
+
+networks:
+  default:
+    name: notfive-digest
