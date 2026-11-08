@@ -2,8 +2,8 @@
 FROM php:8.4-apache-bookworm AS base
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq-dev libicu-dev unzip \
-    && docker-php-ext-install -j"$(nproc)" pdo_pgsql intl opcache \
+    && apt-get install -y --no-install-recommends libpq-dev libicu-dev libzip-dev unzip \
+    && docker-php-ext-install -j"$(nproc)" pdo_pgsql intl opcache zip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

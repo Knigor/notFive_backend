@@ -3,6 +3,10 @@ services:
     networks:
       - default
       - digest
+  digest_worker:
+    networks:
+      - default
+      - digest
 
 networks:
   digest:

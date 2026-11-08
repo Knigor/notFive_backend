@@ -29,6 +29,17 @@ final readonly class DigestBuilder
             throw new \InvalidArgumentException('Run does not exist or cannot be built.');
         }
 
+        return $this->buildClaimed($runId);
+    }
+
+    /** @return array{runId: string, status: string, eventCount: int, warnings: list<string>} */
+    public function buildClaimed(string $runId): array
+    {
+        $run = $this->repository->run($runId);
+        if (null === $run || 'running' !== $run['status']) {
+            throw new \InvalidArgumentException('Run is not running.');
+        }
+
         try {
             $materials = $this->repository->materials($runId);
             $input = array_map(static fn (array $row): array => [
@@ -73,7 +84,7 @@ final readonly class DigestBuilder
                 return ['runId' => $runId, 'status' => 'completed', 'eventCount' => count($result->recommendedOrder), 'warnings' => $warnings];
             });
         } catch (\Throwable $exception) {
-            $this->repository->fail($runId, 'Digest build failed.');
+            $this->repository->fail($runId, 'digest_build_failed');
             throw $exception;
         }
     }

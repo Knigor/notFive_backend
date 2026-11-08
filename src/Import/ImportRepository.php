@@ -121,8 +121,16 @@ final readonly class ImportRepository
     /** @param array<string, mixed> $collection */
     public function recordGoCollection(string $runId, array $collection): void
     {
-        $this->connection->executeStatement('UPDATE runs SET settings_snapshot = settings_snapshot || CAST(:collection AS jsonb) WHERE id = :id', [
-            'collection' => json_encode(['go_collection' => $collection], JSON_THROW_ON_ERROR),
+        $snapshot = $this->connection->fetchOne('SELECT settings_snapshot FROM runs WHERE id = :id', ['id' => $runId]);
+        if (!is_string($snapshot)) {
+            throw new \UnexpectedValueException('Run settings are missing.');
+        }
+        $settings = json_decode($snapshot, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($settings)) {
+            throw new \UnexpectedValueException('Invalid run settings.');
+        }
+        $this->connection->executeStatement('UPDATE runs SET settings_snapshot = :snapshot WHERE id = :id', [
+            'snapshot' => json_encode([...$settings, 'go_collection' => $collection], JSON_THROW_ON_ERROR),
             'id' => $runId,
         ]);
     }
@@ -155,5 +163,37 @@ final readonly class ImportRepository
             'error' => $error,
             'id' => $runId,
         ]);
+    }
+
+    public function claimNextRun(): ?string
+    {
+        $id = $this->connection->fetchOne(<<<'SQL'
+            UPDATE runs SET status = 'running', started_at = CURRENT_TIMESTAMP
+            WHERE id = (SELECT id FROM runs WHERE status = 'queued' ORDER BY created_at, id LIMIT 1)
+              AND status = 'queued'
+            RETURNING id
+            SQL);
+
+        return false === $id ? null : (string) $id;
+    }
+
+    /** @return list<array{id: string, locator: string}> */
+    public function siteInputs(string $runId): array
+    {
+        $rows = $this->connection->fetchAllAssociative("SELECT id, locator FROM run_inputs WHERE run_id = :run_id AND kind = 'site' ORDER BY id", ['run_id' => $runId]);
+
+        return array_map(static fn (array $row): array => ['id' => (string) $row['id'], 'locator' => (string) $row['locator']], $rows);
+    }
+
+    public function failPendingInputs(string $runId): void
+    {
+        $this->connection->executeStatement("UPDATE run_inputs SET status = 'failed', error = 'run_processing_failed' WHERE run_id = :run_id AND status = 'pending'", ['run_id' => $runId]);
+    }
+
+    public function requeue(string $runId, bool $allowRunning): bool
+    {
+        $statuses = $allowRunning ? "('failed', 'running')" : "('failed')";
+
+        return 1 === $this->connection->executeStatement("UPDATE runs SET status = 'queued', error = NULL, started_at = NULL, finished_at = NULL WHERE id = :id AND status IN ".$statuses, ['id' => $runId]);
     }
 }

@@ -3,6 +3,7 @@ type Query {
   publishedDigestDates: [String!]!
   digest(date: String!): Digest
   availableSiteSources: [SiteSource!]!
+  runStatus(runId: ID!): RunStatus
 }
 
 type Digest {
@@ -48,6 +49,16 @@ type SiteSource {
   taskUrl: String!
   searchDomain: String!
   status: String!
+}
+
+type RunStatus {
+  runId: ID!
+  status: String!
+  error: String
+  createdAt: String!
+  startedAt: String
+  finishedAt: String
+  files: [String!]!
 }
 
 type Mutation {

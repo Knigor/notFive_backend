@@ -20,6 +20,50 @@ final readonly class DigestRepository
         return false === $row ? null : $row;
     }
 
+    /** @return array<string, mixed>|null */
+    public function status(string $runId): ?array
+    {
+        $run = $this->connection->fetchAssociative('SELECT id, status, error, created_at, started_at, finished_at FROM runs WHERE id = :id', ['id' => $runId]);
+        if (false === $run) {
+            return null;
+        }
+
+        $files = 'completed' === $run['status'] ? $this->artifacts($runId) : [];
+
+        return [
+            'runId' => (string) $run['id'],
+            'status' => (string) $run['status'],
+            'error' => $run['error'],
+            'createdAt' => (new \DateTimeImmutable((string) $run['created_at']))->format(DATE_ATOM),
+            'startedAt' => null === $run['started_at'] ? null : (new \DateTimeImmutable((string) $run['started_at']))->format(DATE_ATOM),
+            'finishedAt' => null === $run['finished_at'] ? null : (new \DateTimeImmutable((string) $run['finished_at']))->format(DATE_ATOM),
+            'files' => 4 === count($files) ? array_keys($files) : [],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public function artifacts(string $runId): array
+    {
+        $kinds = ['digest' => 'digest.md', 'post' => 'post.md', 'email_preview' => 'email.md', 'journal' => 'journal.csv'];
+        $rows = $this->connection->fetchAllAssociative('SELECT kind, content FROM artifacts WHERE run_id = :run_id', ['run_id' => $runId]);
+        $files = [];
+        foreach ($rows as $row) {
+            $name = $kinds[$row['kind']] ?? null;
+            if (null !== $name) {
+                $files[$name] = (string) $row['content'];
+            }
+        }
+
+        $ordered = [];
+        foreach ($kinds as $name) {
+            if (isset($files[$name])) {
+                $ordered[$name] = $files[$name];
+            }
+        }
+
+        return $ordered;
+    }
+
     public function claim(string $runId): bool
     {
         return 1 === $this->connection->executeStatement("UPDATE runs SET status = 'running', started_at = CURRENT_TIMESTAMP WHERE id = :id AND status = 'queued'", ['id' => $runId]);

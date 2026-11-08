@@ -19,6 +19,31 @@ Query:
                 type: '[SiteSource!]!'
                 resolve: '@=query("App\\GraphQL\\Query\\AvailableSiteSourcesQuery::availableSiteSources")'
                 complexity: '@=childrenComplexity * 30 + 1'
+            runStatus:
+                type: RunStatus
+                args:
+                    runId: ID!
+                resolve: '@=query("App\\GraphQL\\Query\\RunStatusQuery::runStatus", args["runId"])'
+                complexity: '@=childrenComplexity + 1'
+
+RunStatus:
+    type: object
+    config:
+        fields:
+            runId:
+                type: ID!
+            status:
+                type: String!
+            error:
+                type: String
+            createdAt:
+                type: String!
+            startedAt:
+                type: String
+            finishedAt:
+                type: String
+            files:
+                type: '[String!]!'
 
 SiteSource:
     type: object

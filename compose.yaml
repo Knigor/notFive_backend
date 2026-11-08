@@ -67,6 +67,34 @@ services:
       database:
         condition: service_healthy
 
+  digest_worker:
+    profiles: ['worker']
+    image: notfive:local
+    user: www-data
+    command: ['php', '-d', 'max_execution_time=0', 'bin/console', 'digest:process-runs', '--no-interaction']
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      disable: true
+    environment:
+      APP_ENV: dev
+      APP_DEBUG: '1'
+      APP_SECRET: ${APP_SECRET:-notfive-local-development-only}
+      POSTGRES_HOST: database
+      POSTGRES_DB: ${POSTGRES_DB:-notfive}
+      POSTGRES_USER: ${POSTGRES_USER:-notfive}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-notfive-local-only}
+      DIGEST_SERVICE_TOKEN: ${DIGEST_SERVICE_TOKEN:-}
+      GO_SERVICE_URL: ${GO_SERVICE_URL:-}
+    volumes:
+      - ./src:/app/src:ro
+      - ./config:/app/config:ro
+      - ./translations:/app/translations:ro
+      - dataset_files:/app/var/datasets
+    depends_on:
+      database:
+        condition: service_healthy
+
   mailpit:
     image: axllent/mailpit:v1.27.4
     ports:

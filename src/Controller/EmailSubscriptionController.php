@@ -6,6 +6,7 @@ namespace App\Controller;
 
 use App\Mail\EmailSubscriptionLinks;
 use App\Mail\EmailSubscriptionRepository;
+use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -23,6 +24,8 @@ final readonly class EmailSubscriptionController
     }
 
     #[Route('/email/confirm', name: 'email_subscription_confirm', methods: ['GET', 'POST'])]
+    #[OA\Get(summary: 'Open email subscription confirmation page', description: 'The link is sent by email. GET displays the confirmation page and does not activate the subscription.', tags: ['Email subscription links'], parameters: [new OA\Parameter(name: 'token', in: 'query', required: true, description: 'Opaque token from the confirmation email.', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'HTML confirmation page.'), new OA\Response(response: 400, description: 'Invalid or expired token.')])]
+    #[OA\Post(summary: 'Confirm email subscription', description: 'The confirmation form submits POST to the same tokenized URL.', tags: ['Email subscription links'], parameters: [new OA\Parameter(name: 'token', in: 'query', required: true, description: 'Opaque token from the confirmation email.', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'HTML result page.'), new OA\Response(response: 400, description: 'Invalid or expired token.')])]
     public function confirm(Request $request): Response
     {
         $token = $this->token($request);
@@ -41,6 +44,8 @@ final readonly class EmailSubscriptionController
     }
 
     #[Route('/email/unsubscribe', name: 'email_subscription_unsubscribe', methods: ['GET', 'POST'])]
+    #[OA\Get(summary: 'Open email unsubscribe page', description: 'The link is sent in the newsletter. GET displays the unsubscribe page and does not change the subscription.', tags: ['Email subscription links'], parameters: [new OA\Parameter(name: 'token', in: 'query', required: true, description: 'Opaque token from the newsletter.', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'HTML unsubscribe page.'), new OA\Response(response: 400, description: 'Invalid token.')])]
+    #[OA\Post(summary: 'Unsubscribe email address', description: 'The unsubscribe form submits POST to the same tokenized URL.', tags: ['Email subscription links'], parameters: [new OA\Parameter(name: 'token', in: 'query', required: true, description: 'Opaque token from the newsletter.', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'HTML result page.'), new OA\Response(response: 400, description: 'Invalid token.')])]
     public function unsubscribe(Request $request): Response
     {
         $token = $this->token($request);

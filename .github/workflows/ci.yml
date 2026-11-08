@@ -71,11 +71,19 @@ jobs:
           with open('/tmp/notfive-api-doc-dev.json') as file:
               development = json.load(file)
 
-          assert set(production['paths']) == {'/healthz', '/api/graphql'}
-          assert set(development['paths']) == {
-              '/healthz', '/api/graphql', '/api/digest-email/preview', '/api/digest-email/send'
+          artifact_paths = {
+              '/api/runs/{runId}/artifacts/{filename}',
+              '/api/runs/{runId}/artifacts.zip',
           }
+          public_paths = {'/healthz', '/api/graphql', '/email/confirm', '/email/unsubscribe'}
+          assert set(production['paths']) == public_paths | artifact_paths
+          assert set(development['paths']) == {
+              '/api/digest-email/preview', '/api/digest-email/send'
+          } | public_paths | artifact_paths
           assert development['paths']['/api/graphql']['post']['requestBody']['content']['application/json']['schema']['properties']['query']['example'] == 'query Ping { ping }'
+          assert 'startRunSites' in production['paths']['/api/graphql']['post']['requestBody']['content']['application/json']['examples']
+          assert 'multipart/form-data' in production['paths']['/api/graphql']['post']['requestBody']['content']
+          assert production['paths']['/api/runs/{runId}/artifacts.zip']['get']['security'] == [{'AdminBearer': []}]
           assert development['paths']['/api/digest-email/send']['post']['requestBody']['content']['application/json']['schema']['required'] == ['subject', 'digest', 'recipient']
           PY
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8080/api/doc)" = 404

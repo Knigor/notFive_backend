@@ -87,6 +87,10 @@ run_start:
     multiple_inputs: 'Provide either a file or selected sites.'
     control_time_required: 'Specify a control time when no file is uploaded.'
     invalid_sources: 'Select no more than five distinct, available sites from the catalog.'
+run_status:
+    failed: 'The digest could not be prepared. Details are available in the server logs.'
+    retry_unavailable: 'Only a failed run can be retried. Stop the worker and use --force-running for an interrupted run.'
+    requeued: 'The run is queued for processing again.'
 auth:
     invalid_input: 'Check the username and password.'
     invalid_credentials: 'Invalid username or password.'

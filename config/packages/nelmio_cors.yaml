@@ -6,3 +6,6 @@ nelmio_cors:
         max_age: 3600
     paths:
         '^/api/graphql$': null
+        '^/api/runs/':
+            allow_methods: ['GET', 'OPTIONS']
+            expose_headers: ['Content-Disposition']

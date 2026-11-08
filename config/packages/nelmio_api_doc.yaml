@@ -5,14 +5,42 @@ nelmio_api_doc:
         info:
             title: notFive API
             version: 0.1.0
-            description: HTTP API for the notFive digest. GraphQL types and operations are defined in schema.graphql.
+            description: >-
+                HTTP contract for notFive. GraphQL operations use POST /api/graphql; the complete
+                type contract is in schema.graphql in the backend repository. Public operations
+                are ping, publishedDigestDates, digest, subscribeEmail and login. Administrator
+                operations availableSiteSources, startRun, runStatus and publishDigest require
+                Authorization: Bearer <JWT>. GraphQL execution errors may be returned with HTTP 200
+                in the errors array. The API documentation UI is not exposed in production.
+        components:
+            securitySchemes:
+                AdminBearer:
+                    type: http
+                    scheme: bearer
+                    bearerFormat: JWT
         paths:
             /api/graphql:
                 post:
                     tags: [GraphQL]
                     summary: Execute a GraphQL operation
-                    description: GraphQL operations share this HTTP endpoint. The current schema exposes Query.ping, which returns 1.
+                    description: >-
+                        Use application/json for queries and mutations without a file. For startRun
+                        with a JSON or CSV file, use GraphQL multipart request fields operations,
+                        map and 0. File and sourceIds cannot be supplied together. For a sites or
+                        default run, controlTime is required; a JSON file can provide its own time.
+                        After startRun returns queued, poll runStatus and download completed files
+                        through /api/runs/{runId}/artifacts/{filename} or artifacts.zip.
                     operationId: executeGraphql
+                    security:
+                        - {}
+                        - AdminBearer: []
+                    parameters:
+                        - name: Accept-Language
+                          in: header
+                          description: Language of validation and status messages.
+                          schema:
+                              type: string
+                              enum: [ru, en]
                     requestBody:
                         required: true
                         content:
@@ -32,9 +60,79 @@ nelmio_api_doc:
                                         operationName:
                                             type: string
                                             description: Operation name when the document contains multiple operations.
+                                examples:
+                                    ping:
+                                        summary: Public connection check
+                                        value:
+                                            query: 'query Ping { ping }'
+                                    publishedDigestDates:
+                                        summary: Public list of published days
+                                        value:
+                                            query: 'query PublishedDigestDates { publishedDigestDates }'
+                                    digest:
+                                        summary: Public published digest by Moscow date
+                                        value:
+                                            query: 'query Digest($date: String!) { digest(date: $date) { runId controlTime periodStart timezone language publishedAt totalMaterials events { id rank title summary consequences selectionReason sources { id name url publishedAt } } files { digest post email csv emailSubject } } }'
+                                            variables: { date: '2026-11-08' }
+                                    subscribeEmail:
+                                        summary: Public email subscription request
+                                        value:
+                                            query: 'mutation SubscribeEmail($email: String!) { subscribeEmail(email: $email) { status message } }'
+                                            variables: { email: 'reader@example.invalid' }
+                                    login:
+                                        summary: Get administrator JWT
+                                        value:
+                                            query: 'mutation AdminLogin($input: AdminLoginInput!) { login(input: $input) { token expiresIn } }'
+                                            variables:
+                                                input: { username: admin, password: '<password>' }
+                                    availableSiteSources:
+                                        summary: Administrator source catalogue; use ready IDs in startRun
+                                        value:
+                                            query: 'query AvailableSiteSources { availableSiteSources { id name taskUrl searchDomain status } }'
+                                    startRunSites:
+                                        summary: Start from selected sites; 1 to 5 ready source IDs
+                                        value:
+                                            query: 'mutation StartRun($input: RunStartInput!) { startRun(input: $input) { runId imported rejected siteCount inputKind dispatchStatus status } }'
+                                            variables:
+                                                input:
+                                                    sourceIds: ['<site-source-id>']
+                                                    controlTime: '2026-11-08T12:00:00+03:00'
+                                    startRunDefault:
+                                        summary: Start with default search domains
+                                        value:
+                                            query: 'mutation StartRun($input: RunStartInput!) { startRun(input: $input) { runId status } }'
+                                            variables:
+                                                input: { controlTime: '2026-11-08T12:00:00+03:00' }
+                                    runStatus:
+                                        summary: Poll administrator run status and available file names
+                                        value:
+                                            query: 'query RunStatus($runId: ID!) { runStatus(runId: $runId) { runId status error createdAt startedAt finishedAt files } }'
+                                            variables: { runId: '00000000-0000-4000-8000-000000000000' }
+                                    publishDigest:
+                                        summary: Publish a completed digest and send the email newsletter
+                                        value:
+                                            query: 'mutation PublishDigest($runId: ID!) { publishDigest(runId: $runId) { runId publishedAt alreadyPublished emailSent emailFailed emailPending } }'
+                                            variables: { runId: '00000000-0000-4000-8000-000000000000' }
+                            multipart/form-data:
+                                schema:
+                                    type: object
+                                    required: [operations, map, '0']
+                                    properties:
+                                        operations:
+                                            type: string
+                                            description: JSON encoded GraphQL operation with variables.input.file set to null.
+                                            example: '{"query":"mutation StartRun($input: RunStartInput!) { startRun(input: $input) { runId status } }","variables":{"input":{"file":null}}}'
+                                        map:
+                                            type: string
+                                            description: JSON encoded GraphQL multipart file map.
+                                            example: '{"0":["variables.input.file"]}'
+                                        '0':
+                                            type: string
+                                            format: binary
+                                            description: JSON or CSV input file.
                     responses:
                         '200':
-                            description: GraphQL result; execution errors are returned in the errors array.
+                            description: GraphQL data or execution errors. Inspect errors even when HTTP status is 200.
                             content:
                                 application/json:
                                     schema:
@@ -43,11 +141,7 @@ nelmio_api_doc:
                                             data:
                                                 type: object
                                                 nullable: true
-                                                properties:
-                                                    ping:
-                                                        type: integer
-                                                        description: Result of the current Ping query.
-                                                        example: 1
+                                                additionalProperties: true
                                             errors:
                                                 type: array
                                                 description: Present when GraphQL reports errors.
@@ -56,10 +150,36 @@ nelmio_api_doc:
                                                     properties:
                                                         message:
                                                             type: string
-                                    example:
-                                        data:
-                                            ping: 1
+                                    examples:
+                                        ping:
+                                            value:
+                                                data: { ping: 1 }
+                                        queuedRun:
+                                            value:
+                                                data:
+                                                    startRun:
+                                                        runId: '00000000-0000-4000-8000-000000000000'
+                                                        status: queued
+                                        completedRun:
+                                            value:
+                                                data:
+                                                    runStatus:
+                                                        runId: '00000000-0000-4000-8000-000000000000'
+                                                        status: completed
+                                                        error: null
+                                                        createdAt: '2026-11-08T12:00:00+03:00'
+                                                        startedAt: '2026-11-08T12:00:01+03:00'
+                                                        finishedAt: '2026-11-08T12:02:00+03:00'
+                                                        files: [digest.md, post.md, email.md, journal.csv]
+                                        graphqlError:
+                                            value:
+                                                data: null
+                                                errors: [{ message: 'Validation error' }]
+                        '400':
+                            description: Malformed JSON, multipart body or GraphQL document.
+                        '401':
+                            description: Invalid bearer token. Protected operations without a token may report a GraphQL error.
     areas:
         default:
             path_patterns:
-                - '^/(?:healthz|api/(?:graphql|digest-email/(?:preview|send)))$'
+                - '^/(?:healthz|email/(?:confirm|unsubscribe)|api/(?:graphql|digest-email/(?:preview|send)|runs/.+))$'
