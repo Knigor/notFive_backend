@@ -20,9 +20,14 @@ final readonly class TelegramApiClient
     }
 
     /** @param list<list<array{ text: string, callback_data?: string, url?: string, style?: 'primary'|'success'|'danger' }>> $buttons */
-    public function sendMessage(string $chatId, string $text, array $buttons = []): string
+    public function sendMessage(string $chatId, string $text, array $buttons = [], bool $html = false): string
     {
         $payload = ['chat_id' => $chatId, 'text' => $text];
+
+        if ($html) {
+            $payload['parse_mode'] = 'HTML';
+            $payload['link_preview_options'] = ['is_disabled' => true];
+        }
 
         if ([] !== $buttons) {
             $payload['reply_markup'] = ['inline_keyboard' => $buttons];

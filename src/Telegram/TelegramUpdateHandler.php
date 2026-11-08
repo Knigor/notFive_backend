@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Telegram;
 
+use App\Digest\PublishedDigestRepository;
+
 final readonly class TelegramUpdateHandler
 {
     public function __construct(
@@ -11,6 +13,7 @@ final readonly class TelegramUpdateHandler
         private TelegramSubscriptionRepository $subscriptions,
         private PublishedDigestRepository $digests,
         private TelegramMessages $messages,
+        private TelegramDigestSender $digestSender,
     ) {
     }
 
@@ -167,11 +170,7 @@ final readonly class TelegramUpdateHandler
             return;
         }
 
-        $this->telegram->sendMessage(
-            $chatId,
-            $this->messages->digest($digest, $subscription['locale']),
-            $this->messages->digestButtons($digest, $subscription['locale']),
-        );
+        $this->digestSender->send($chatId, $digest, $subscription['locale']);
     }
 
     private function showEvent(string $chatId, string $eventId): void

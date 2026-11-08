@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Telegram;
+namespace App\Digest;
 
 final readonly class PublishedEvent
 {
