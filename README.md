@@ -149,7 +149,7 @@ docker compose exec -T app php bin/console digest:publish RUN_UUID
 
 - CI собирает production-образ, проверяет Composer, Symfony, Twig, HTTP-ответы и соединение с настоящей PostgreSQL.
 - Release workflow принимает стабильные версии `vX.Y.Z`, проверяет, что коммит входит в `master`, и повторяет CI. Черновик, prerelease и просто push тега не запускают публикацию.
-- Публикуются `ghcr.io/knigor/notfive_backend:vX.Y.Z` и `ghcr.io/knigor/notfive-digest:vX.Y.Z` для `linux/amd64` и `linux/arm64`. Имена автоматически приводятся к нижнему регистру. Теги версий не переиспользовать.
+- Публикуются `ghcr.io/knigor/notfive_backend:vX.Y.Z` и `ghcr.io/knigor/notfive-digest:vX.Y.Z` только для `linux/amd64`, под архитектуру текущего VPS `x86_64`. Эмуляция ARM в релизе не используется. Для локальной работы на Mac можно собрать образ через Compose. Имена автоматически приводятся к нижнему регистру. Теги версий не переиспользовать.
 - Release вызывает проверку и публикацию Go через reusable workflow `digest.yml`. Отдельный запуск Digest service на событие release не нужен: общий deploy ждёт готовности обоих образов.
 - Публикация использует встроенный `GITHUB_TOKEN` с `packages: write` только у заданий публикации. Отдельный токен реестра в GitHub Secrets не нужен. Образы связаны с репозиторием через OCI label.
 - Сервер получает оба образа по digest `@sha256:…`, то есть именно результаты этой сборки. Исходники и Composer на сервере не нужны.
