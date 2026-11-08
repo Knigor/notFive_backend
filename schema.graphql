@@ -1,6 +1,7 @@
 type Query {
   ping: Int!
   availableSiteSources: [SiteSource!]!
+  runStatus(runId: ID!): RunStatus
 }
 
 type SiteSource {
@@ -9,6 +10,16 @@ type SiteSource {
   taskUrl: String!
   searchDomain: String!
   status: String!
+}
+
+type RunStatus {
+  runId: ID!
+  status: String!
+  error: String
+  createdAt: String!
+  startedAt: String
+  finishedAt: String
+  files: [String!]!
 }
 
 type Mutation {

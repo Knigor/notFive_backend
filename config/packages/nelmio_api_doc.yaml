@@ -11,7 +11,7 @@ nelmio_api_doc:
                 post:
                     tags: [GraphQL]
                     summary: Execute a GraphQL operation
-                    description: GraphQL operations share this HTTP endpoint. The current schema exposes Query.ping, which returns 1.
+                    description: GraphQL operations share this HTTP endpoint. The current schema exposes administrator login, startRun, runStatus and availableSiteSources, plus public ping.
                     operationId: executeGraphql
                     requestBody:
                         required: true
@@ -62,4 +62,4 @@ nelmio_api_doc:
     areas:
         default:
             path_patterns:
-                - '^/(?:healthz|api/(?:graphql|digest-email/(?:preview|send)))$'
+                - '^/(?:healthz|api/(?:graphql|digest-email/(?:preview|send)|runs/.+))$'

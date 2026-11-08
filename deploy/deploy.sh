@@ -35,9 +35,17 @@ bot_compose() {
         docker compose --env-file .env.production -f compose.prod.yaml --profile telegram "$@"
     fi
 }
+worker_compose() {
+    if [ -n "$digest_network" ]; then
+        docker compose --env-file .env.production -f compose.prod.yaml -f compose.digest.yaml --profile worker "$@"
+    else
+        docker compose --env-file .env.production -f compose.prod.yaml --profile worker "$@"
+    fi
+}
 
 previous=''
 bot_was_running=''
+worker_was_running=''
 container="$(compose ps --all --quiet app)"
 if [ -n "$container" ]; then
     previous="$(docker inspect --format '{{.Config.Image}}' "$container")"
@@ -46,13 +54,21 @@ bot_container="$(bot_compose ps --all --quiet telegram)"
 if [ -n "$bot_container" ] && [ "$(docker inspect --format '{{.State.Running}}' "$bot_container")" = true ]; then
     bot_was_running=1
 fi
+worker_container="$(worker_compose ps --all --quiet digest_worker)"
+if [ -n "$worker_container" ] && [ "$(docker inspect --format '{{.State.Running}}' "$worker_container")" = true ]; then
+    worker_was_running=1
+fi
 
 restore_previous() {
+    worker_compose stop digest_worker
     if [ -n "$previous" ]; then
         echo "Deployment failed; restoring $previous" >&2
         APP_IMAGE="$previous" compose up -d --no-build --wait --wait-timeout 120 app
         if [ -n "$bot_was_running" ]; then
             APP_IMAGE="$previous" bot_compose up -d --no-build --wait --wait-timeout 120 telegram
+        fi
+        if [ -n "$worker_was_running" ]; then
+            APP_IMAGE="$previous" worker_compose up -d --no-build --wait --wait-timeout 120 digest_worker
         fi
     fi
 }
@@ -60,6 +76,7 @@ restore_previous() {
 compose config --quiet
 compose pull app
 bot_compose stop telegram
+worker_compose stop digest_worker
 if ! compose up -d --no-build --wait --wait-timeout 120; then
     compose logs --tail=80 app >&2
     restore_previous
@@ -67,6 +84,12 @@ if ! compose up -d --no-build --wait --wait-timeout 120; then
 fi
 
 if ! compose exec -T app app-migrate; then
+    restore_previous
+    exit 1
+fi
+
+if ! worker_compose up -d --no-build --wait --wait-timeout 120 digest_worker; then
+    worker_compose logs --tail=80 digest_worker >&2
     restore_previous
     exit 1
 fi

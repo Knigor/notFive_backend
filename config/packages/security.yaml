@@ -7,8 +7,11 @@ security:
             id: App\Security\AdminUserProvider
 
     firewalls:
-        graphql:
-            pattern: ^/api/graphql$
+        api:
+            pattern: ^/api/(graphql|runs)
             stateless: true
             provider: admin_users
             jwt: ~
+
+    access_control:
+        - { path: ^/api/runs, roles: ROLE_ADMIN }
