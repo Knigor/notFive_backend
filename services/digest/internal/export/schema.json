@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["selection_summary", "events"],
+  "properties": {
+    "selection_summary": {"type": "string", "description": "Краткая причина числа событий, до 100 знаков."},
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["group_id", "title", "summary", "consequences", "post", "reason"],
+        "properties": {
+          "group_id": {"type": "string"},
+          "title": {"type": "string", "description": "Нейтральный заголовок до 70 знаков; при group_issues укажи необходимость проверки."},
+          "summary": {"type": "string", "description": "Два коротких предложения, до 220 знаков. При group_issues объясни отсутствие подтверждённых данных, не придумывай факты."},
+          "consequences": {"type": "string", "description": "Последствия и оговорки, до 160 знаков. Не утверждай последствия неподтверждённой группы."},
+          "post": {"type": "string", "description": "Краткий пересказ того же события с важными оговорками, до 200 знаков. Для group_issues сообщи только о необходимости проверки."},
+          "reason": {"type": "string", "description": "Одно короткое обоснование, до 100 знаков."}
+        }
+      }
+    }
+  }
+}

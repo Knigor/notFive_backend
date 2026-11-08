@@ -15,26 +15,6 @@ import (
 	"github.com/Knigor/notFive_backend/services/digest/internal/news"
 )
 
-type collectionTestRun struct {
-	ID         string           `json:"id"`
-	Mode       string           `json:"mode"`
-	Status     string           `json:"status"`
-	Result     *json.RawMessage `json:"result"`
-	Research   *Research        `json:"research"`
-	Collection *struct {
-		ControlTime      string              `json:"control_time"`
-		WindowStart      string              `json:"window_start"`
-		Articles         []collector.Article `json:"articles"`
-		ExcludedArticles []ResearchSource    `json:"excluded_articles"`
-		Counts           struct {
-			Candidates int `json:"candidates"`
-			Accepted   int `json:"accepted"`
-			Excluded   int `json:"excluded"`
-		} `json:"counts"`
-		Warnings []string `json:"warnings"`
-	} `json:"collection"`
-}
-
 func TestCollectionReturnsArticleTextsWithinWindowWithoutSynthesis(t *testing.T) {
 	control := time.Date(2026, 11, 8, 13, 48, 16, 0, time.FixedZone("MSK", 3*60*60))
 	articleURL := func(name string) string { return "https://www.securitylab.ru/news/" + name + ".php" }
@@ -62,7 +42,7 @@ func TestCollectionReturnsArticleTextsWithinWindowWithoutSynthesis(t *testing.T)
 		if name == "unavailable" {
 			return news.Article{}, news.ErrUnavailable
 		}
-		return news.Article{URL: address, Title: "Publication " + name, Text: "Source article text " + name, PublishedAt: dates[name], DateEvidence: "HTML datePublished"}, nil
+		return news.Article{URL: address, Title: "Publication " + name, Text: "Source article text " + name, PublishedAt: dates[name], DateEvidence: "HTML datePublished", TextTruncated: name == "inside"}, nil
 	})
 	server, err := New(cfg, provider)
 	if err != nil {
@@ -72,14 +52,15 @@ func TestCollectionReturnsArticleTextsWithinWindowWithoutSynthesis(t *testing.T)
 	if response.Code != 201 {
 		t.Fatalf("status %d: %s", response.Code, response.Body.String())
 	}
-	var run collectionTestRun
-	if err := json.Unmarshal(response.Body.Bytes(), &run); err != nil {
-		t.Fatal(err)
-	}
-	if run.Mode != "collection" || run.Status != "completed" || run.Collection == nil || run.Result != nil || searches.Load() != 1 {
+	dataset := decodeNewsDataset(t, response)
+	run := savedRunFromCollection(t, server, response)
+	if run.Mode != "collection" || run.Status != "completed" || run.Collection == nil || searches.Load() != 1 {
 		t.Fatalf("collection performed synthesis or lost its result: %+v; searches=%d", run, searches.Load())
 	}
 	collection := run.Collection
+	if dataset.Dataset != "web" || dataset.Timezone != "Europe/Moscow" || dataset.ControlTime != "2026-11-08T13:48:16+03:00" || dataset.PeriodStart != "2026-11-07T13:48:16+03:00" || len(dataset.Items) != 2 {
+		t.Fatalf("incorrect news.json metadata or selection: %+v", dataset)
+	}
 	if collection.ControlTime != "2026-11-08T13:48:16+03:00" || collection.WindowStart != "2026-11-07T13:48:16+03:00" || collection.Counts.Candidates != 6 || collection.Counts.Accepted != 2 || collection.Counts.Excluded != 4 {
 		t.Fatalf("incorrect window or counts: %+v", collection)
 	}
@@ -90,6 +71,13 @@ func TestCollectionReturnsArticleTextsWithinWindowWithoutSynthesis(t *testing.T)
 		article := collection.Articles[i]
 		if article.URL != articleURL(name) || article.Text != "Source article text "+name || article.Title != "Publication "+name || article.Source != "www.securitylab.ru" || article.PublishedAt != dates[name].Format(time.RFC3339Nano) || article.ReadError != "" || article.ID == "" {
 			t.Errorf("lost verified article data: %+v", article)
+		}
+		want := NewsItem{ID: article.ID, Title: article.Title, Text: new(article.Text), Source: article.Source, URL: article.URL, PublishedAt: new(article.PublishedAt), Missing: []string{}, Error: nil}
+		if !reflect.DeepEqual(dataset.Items[i], want) {
+			t.Errorf("news.json changed accepted material: got %+v, want %+v", dataset.Items[i], want)
+		}
+		if article.DateEvidence != "HTML datePublished" || article.TextTruncated != (name == "inside") {
+			t.Errorf("audit lost date evidence or truncation marker: %+v", article)
 		}
 	}
 	reasons := map[string]string{}
@@ -112,8 +100,8 @@ func TestCollectionReturnsArticleTextsWithinWindowWithoutSynthesis(t *testing.T)
 		t.Fatal(err)
 	}
 	saved := call(restarted, "GET", "/v1/runs/"+run.ID, "", serviceToken)
-	var loaded collectionTestRun
-	if saved.Code != 200 || json.Unmarshal(saved.Body.Bytes(), &loaded) != nil || !reflect.DeepEqual(loaded.Collection, run.Collection) || loaded.Result != nil {
+	var loaded Run
+	if saved.Code != 200 || json.Unmarshal(saved.Body.Bytes(), &loaded) != nil || !reflect.DeepEqual(loaded.Collection, run.Collection) {
 		t.Fatalf("collection was not persisted: %d %s", saved.Code, saved.Body.String())
 	}
 	for _, artifact := range []string{"research.md", "digest.md", "post.md", "email.html", "journal.csv"} {
@@ -140,8 +128,9 @@ func TestCollectionWithoutEligibleArticlesCompletesWithoutSynthesis(t *testing.T
 			})
 			server, _ := newServer(t, provider)
 			response := call(server, "POST", "/v1/collect", `{"control_time":"2026-11-08T13:48:16+03:00","query":"ИБ"}`, serviceToken)
-			var run collectionTestRun
-			if response.Code != 201 || json.Unmarshal(response.Body.Bytes(), &run) != nil || run.Status != "completed" || run.Collection == nil || run.Result != nil {
+			dataset := decodeNewsDataset(t, response)
+			run := savedRunFromCollection(t, server, response)
+			if response.Code != 201 || run.Status != "completed" || run.Collection == nil || dataset.Items == nil || len(dataset.Items) != 0 {
 				t.Fatalf("empty collection did not complete: %d %s", response.Code, response.Body.String())
 			}
 			if searches.Load() != 1 || run.Collection.Articles == nil || len(run.Collection.Articles) != 0 || run.Collection.Counts.Accepted != 0 || run.Collection.Counts.Candidates != test.count || run.Collection.Counts.Excluded != test.count || len(run.Collection.ExcludedArticles) != test.count {
@@ -203,15 +192,16 @@ func TestCollectionDoesNotApplySynthesisInputBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	response := call(server, "POST", "/v1/collect", `{"control_time":"2026-11-08T13:48:16+03:00","query":"ИБ"}`, serviceToken)
-	var run collectionTestRun
-	if response.Code != 201 || json.Unmarshal(response.Body.Bytes(), &run) != nil || run.Collection == nil || run.Result != nil {
+	dataset := decodeNewsDataset(t, response)
+	run := savedRunFromCollection(t, server, response)
+	if response.Code != 201 || run.Collection == nil || len(dataset.Items) != 12 {
 		t.Fatalf("large collection failed: status %d", response.Code)
 	}
 	if searches.Load() != 1 || len(run.Collection.Articles) != 12 || run.Collection.Counts.Accepted != 12 || run.Collection.Counts.Excluded != 0 || len(run.Collection.ExcludedArticles) != 0 {
 		t.Fatalf("collection wrongly applied model input budget: counts=%+v articles=%d", run.Collection.Counts, len(run.Collection.Articles))
 	}
-	for _, article := range run.Collection.Articles {
-		if article.Text != text {
+	for i, article := range run.Collection.Articles {
+		if article.Text != text || dataset.Items[i].Text == nil || *dataset.Items[i].Text != text {
 			t.Errorf("collection truncated source %s", article.URL)
 		}
 	}

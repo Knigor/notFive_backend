@@ -27,7 +27,7 @@ type Generation struct {
 	DurationMS int64           `json:"duration_ms"`
 }
 
-// Provider searches for article links. Collected texts are not sent for synthesis.
+// Provider runs a configured model for search, analysis or publication prose.
 type Provider interface {
 	Generate(ctx context.Context, instructions, input string) (Generation, error)
 }

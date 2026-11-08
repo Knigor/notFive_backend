@@ -1,0 +1,13 @@
+{
+  "description": "Source publications from publicly accessible websites with a confirmed publication date within the specified period. Semantic selection and digest preparation are performed separately.",
+  "fields": {
+    "id": "material ID",
+    "title": "title",
+    "text": "text; null or an empty string when unavailable",
+    "source": "publisher",
+    "url": "publication URL",
+    "published_at": "publication date and time in ISO 8601 with a time zone; null when unavailable",
+    "missing": "list of missing fields",
+    "error": "error while obtaining the material, if any"
+  }
+}

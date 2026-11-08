@@ -48,6 +48,30 @@ func call(handler http.Handler, method, path, body, token string) *httptest.Resp
 	return recorder
 }
 
+func savedRunFromCollection(t *testing.T, handler http.Handler, response *httptest.ResponseRecorder) Run {
+	t.Helper()
+	id := response.Header().Get("X-Run-ID")
+	location := response.Header().Get("Location")
+	if response.Code != http.StatusCreated || !runIDPattern.MatchString(id) || location != "/v1/runs/"+id {
+		t.Fatalf("missing saved run reference: status=%d headers=%v", response.Code, response.Header())
+	}
+	saved := call(handler, "GET", location, "", serviceToken)
+	var run Run
+	if saved.Code != http.StatusOK || json.Unmarshal(saved.Body.Bytes(), &run) != nil || run.ID != id {
+		t.Fatalf("could not retrieve saved run: status=%d body=%s", saved.Code, saved.Body.String())
+	}
+	var document map[string]json.RawMessage
+	if err := json.Unmarshal(saved.Body.Bytes(), &document); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"result", "items", "news"} {
+		if _, found := document[key]; found {
+			t.Errorf("saved run contains unexpected generated or duplicated material: %s", key)
+		}
+	}
+	return run
+}
+
 func TestAuthenticationAndValidation(t *testing.T) {
 	var calls atomic.Int32
 	server, _ := newServer(t, providerFunc(func(context.Context, string, string) (collector.Generation, error) {
@@ -100,8 +124,7 @@ func TestResearchRecordsOnlyActualSearchTrace(t *testing.T) {
 	if response.Code != 201 {
 		t.Fatal(response.Body.String())
 	}
-	var run Run
-	_ = json.Unmarshal(response.Body.Bytes(), &run)
+	run := savedRunFromCollection(t, server, response)
 	if run.Mode != "collection" || run.Research == nil || run.Research.Status != "completed" || !run.Research.SearchObserved || len(run.Research.SearchCalls) != 1 || len(run.Research.CitationURLs) != 1 || len(run.Research.CitationRefs) != 3 || run.Research.ControlTime != "2026-11-07T12:00:00+03:00" {
 		t.Fatalf("bad research %+v", run.Research)
 	}

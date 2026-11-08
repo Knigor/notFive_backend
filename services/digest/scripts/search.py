@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Collect articles from a saved request and print JSON (Python 3.9+)."""
+"""Collect articles and print the API's news.json document (Python 3.9+)."""
 
 import argparse
 from datetime import datetime
@@ -76,6 +76,10 @@ def search_payload(path, now):
         payload = json.loads(raw)
     except (ValueError, UnicodeError):
         raise SearchError("В файле запроса некорректный JSON.") from None
+    return validate_search_payload(payload, now)
+
+
+def validate_search_payload(payload, now):
     if not isinstance(payload, dict) or set(payload) != {"control_time", "query"}:
         raise SearchError("JSON должен содержать только control_time и query.")
     query = payload["query"]
@@ -85,22 +89,26 @@ def search_payload(path, now):
         query.encode("utf-8")
     except UnicodeError:
         raise SearchError("query должен содержать корректный UTF-8.") from None
+    payload["control_time"] = validate_control_time(payload["control_time"], now)
+    return payload
+
+
+def validate_control_time(control, now):
     if now:
         try:
-            payload["control_time"] = datetime.now(ZoneInfo("Europe/Moscow")).isoformat(timespec="seconds")
+            control = datetime.now(ZoneInfo("Europe/Moscow")).isoformat(timespec="seconds")
         except ZoneInfoNotFoundError:
             raise SearchError("В системе нет часового пояса Europe/Moscow; установите системную базу tzdata.") from None
-    control = payload["control_time"]
     if not isinstance(control, str) or not RFC3339.fullmatch(control):
         raise SearchError("control_time должен быть в RFC3339 с явным часовым поясом.")
     try:
         datetime.fromisoformat(control.replace("Z", "+00:00"))
     except ValueError:
         raise SearchError("Некорректная дата control_time.") from None
-    return payload
+    return control
 
 
-def endpoint(base_url):
+def endpoint(base_url, path="/v1/collect"):
     try:
         parts = parse.urlsplit(base_url)
         valid = parts.scheme in ("http", "https") and parts.hostname and parts.username is None and parts.password is None
@@ -109,7 +117,7 @@ def endpoint(base_url):
         valid = False
     if not valid or any(ord(char) <= 32 for char in base_url):
         raise SearchError("--url должен быть HTTP(S)-адресом сервиса без логина, пароля, query и fragment.")
-    return parse.urlunsplit((parts.scheme, parts.netloc, parts.path.rstrip("/") + "/v1/collect", "", ""))
+    return parse.urlunsplit((parts.scheme, parts.netloc, parts.path.rstrip("/") + path, "", ""))
 
 
 def http_error_message(response, token):
@@ -121,23 +129,28 @@ def http_error_message(response, token):
         if isinstance(body, dict) and isinstance(body.get("message"), str):
             message = body["message"].replace(token, "[скрыто]")
             message = "".join(char for char in message if char.isprintable())[:1000]
+            if isinstance(body.get("run_id"), str) and re.fullmatch(r"[a-f0-9]{32}", body["run_id"]):
+                message += " ID запуска: " + body["run_id"]
     except (ValueError, UnicodeError, OSError):
         pass
     return f"HTTP {response.code}: {message}"
 
 
-def submit(url, payload, token, timeout):
+def post_json(url, payload, token, timeout, metadata=None):
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = request.Request(url, data=body, method="POST", headers={
         "Authorization": "Bearer " + token,
         "Content-Type": "application/json",
         "Accept": "application/json",
+        "Accept-Language": "ru",
     })
     # Only the URL explicitly selected by the caller receives the bearer token.
     opener = request.build_opener(request.ProxyHandler({}), NoRedirect())
     try:
         with opener.open(req, timeout=timeout) as response:
             raw = response.read(MAX_RESPONSE_BYTES + 1)
+            if metadata is not None:
+                metadata.update(run_id=response.headers.get("X-Run-ID"), location=response.headers.get("Location"))
     except error.HTTPError as exc:
         try:
             message = http_error_message(exc, token)
@@ -152,13 +165,15 @@ def submit(url, payload, token, timeout):
         result = json.loads(raw)
     except (ValueError, UnicodeError):
         raise SearchError("Сервис вернул некорректный JSON.") from None
-    if not isinstance(result, dict) or result.get("status") != "completed":
-        raise SearchError("Сервис не вернул завершённый запуск.")
-    collection = result.get("collection")
-    if result.get("mode") != "collection" or not isinstance(result.get("id"), str) or not result["id"]:
-        raise SearchError("Сервис не вернул запуск сбора статей с id.")
-    if not isinstance(collection, dict) or not isinstance(collection.get("articles"), list):
-        raise SearchError("В ответе сервиса отсутствует collection.articles.")
+    return result
+
+
+def submit(url, payload, token, timeout):
+    result = post_json(url, payload, token, timeout)
+    if not isinstance(result, dict) or not isinstance(result.get("items"), list):
+        raise SearchError("Сервис не вернул news.json с массивом items.")
+    if not all(isinstance(result.get(field), str) for field in ("dataset", "control_time", "period_start", "timezone", "description")) or not isinstance(result.get("fields"), dict):
+        raise SearchError("В ответе сервиса отсутствуют метаданные news.json.")
     return result
 
 
@@ -191,7 +206,7 @@ def main(argv=None):
     parser.add_argument("--now", action="store_true", help="использовать текущее время Москвы, не меняя JSON-файл")
     parser.add_argument("--url", default="http://127.0.0.1:8081", help="базовый адрес сервиса; перенаправления запрещены")
     parser.add_argument("--timeout", type=int, default=200, metavar="SECONDS", help="таймаут запроса в секундах, по умолчанию 200")
-    parser.add_argument("--output", type=Path, help="сохранить полный ответ в новый JSON-файл с правами 0600")
+    parser.add_argument("--output", type=Path, help="сохранить news.json в новый файл с правами 0600")
     parser.add_argument("--check", action="store_true", help="проверить файл и настройки без HTTP-запроса")
     args = parser.parse_args(argv)
     try:
@@ -208,7 +223,7 @@ def main(argv=None):
         result = submit(url, payload, token, args.timeout)
         if args.output is not None:
             save_result(args.output, result)
-        print(json.dumps({"run_id": result["id"], **result["collection"]}, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except SearchError as exc:
         print("Ошибка: " + str(exc), file=sys.stderr)

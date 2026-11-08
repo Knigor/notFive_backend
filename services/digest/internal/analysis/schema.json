@@ -1,0 +1,82 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["groups", "recommended_order", "excluded"],
+  "properties": {
+    "groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "ids", "facts", "contradictions", "selection_reason"],
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "ids": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["statement", "source_ids", "evidence"],
+              "properties": {
+                "statement": {"type": "string"},
+                "source_ids": {
+                  "type": "array",
+                  "items": {"type": "string"}
+                },
+                "evidence": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["article_id", "quote"],
+                    "properties": {
+                      "article_id": {"type": "string"},
+                      "quote": {"type": "string"}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "contradictions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["description", "source_ids"],
+              "properties": {
+                "description": {"type": "string"},
+                "source_ids": {
+                  "type": "array",
+                  "items": {"type": "string"}
+                }
+              }
+            }
+          },
+          "selection_reason": {"type": "string"}
+        }
+      }
+    },
+    "recommended_order": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "excluded": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["article_id", "reason"],
+        "properties": {
+          "article_id": {"type": "string"},
+          "reason": {"type": "string"}
+        }
+      }
+    }
+  }
+}

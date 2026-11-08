@@ -95,10 +95,7 @@ func TestResearchDiscoveryPrioritizesFreshFeedAndStillVerifiesHTMLDate(t *testin
 	if response.Code != 201 {
 		t.Fatalf("discovery request failed: %d %s", response.Code, response.Body.String())
 	}
-	var run Run
-	if err := json.Unmarshal(response.Body.Bytes(), &run); err != nil {
-		t.Fatal(err)
-	}
+	run := savedRunFromCollection(t, server, response)
 	if searchCalls != 1 || len(fetched) != 12 || len(run.Collection.Articles) != 4 {
 		t.Fatalf("bad prioritization: search=%d fetched=%v articles=%+v", searchCalls, fetched, run.Collection.Articles)
 	}
@@ -169,10 +166,7 @@ func TestResearchDiscoveryRoundRobinKeepsOtherSourcesWithinArticleBudget(t *test
 	if response.Code != 201 {
 		t.Fatalf("status %d: %s", response.Code, response.Body.String())
 	}
-	var run Run
-	if err := json.Unmarshal(response.Body.Bytes(), &run); err != nil {
-		t.Fatal(err)
-	}
+	run := savedRunFromCollection(t, server, response)
 	if len(run.Research.Sources) != 12 || !slices.ContainsFunc(run.Research.Sources, func(s ResearchSource) bool { return s.URL == "https://habr.com/ru/news/1105010/" }) {
 		t.Fatalf("large first feed crowded out another source: %+v", run.Research.Sources)
 	}

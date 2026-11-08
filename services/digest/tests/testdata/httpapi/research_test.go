@@ -53,10 +53,7 @@ func TestResearchPublicationWindowAndModelIsolation(t *testing.T) {
 	if response.Code != 201 {
 		t.Fatalf("status %d: %s", response.Code, response.Body.String())
 	}
-	var run Run
-	if err := json.Unmarshal(response.Body.Bytes(), &run); err != nil {
-		t.Fatal(err)
-	}
+	run := savedRunFromCollection(t, server, response)
 	if calls != 1 || run.Collection == nil || len(run.Collection.Articles) != 2 || len(run.Collection.ExcludedArticles) != 4 || len(run.Research.Sources) != 2 {
 		t.Fatalf("wrong selection: calls=%d collection=%+v", calls, run.Collection)
 	}
@@ -91,10 +88,7 @@ func TestResearchOldForecastProducesEmptyCollectionWithoutSecondModelCall(t *tes
 	if response.Code != 201 {
 		t.Fatalf("status %d: %s", response.Code, response.Body.String())
 	}
-	var run Run
-	if err := json.Unmarshal(response.Body.Bytes(), &run); err != nil {
-		t.Fatal(err)
-	}
+	run := savedRunFromCollection(t, server, response)
 	if calls != 1 || run.Collection == nil || len(run.Collection.Articles) != 0 || len(run.Collection.ExcludedArticles) != 1 || len(run.Research.ExcludedSources) != 1 {
 		t.Fatalf("wrong empty collection: %+v", run)
 	}

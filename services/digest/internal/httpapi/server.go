@@ -1,4 +1,4 @@
-// Package httpapi exposes the private article collection API.
+// Package httpapi exposes the private collection, analysis and export API.
 package httpapi
 
 import (
@@ -19,7 +19,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Knigor/notFive_backend/services/digest/internal/analysis"
 	"github.com/Knigor/notFive_backend/services/digest/internal/collector"
+	"github.com/Knigor/notFive_backend/services/digest/internal/export"
 	"github.com/Knigor/notFive_backend/services/digest/internal/news"
 	"github.com/Knigor/notFive_backend/services/digest/internal/yandex"
 )
@@ -29,22 +31,29 @@ const maxBody = 1 << 20
 var runIDPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
 type Config struct {
-	Token            string
-	DataDir          string
-	Timeout          time.Duration
-	MaxConcurrent    int
-	ProviderSettings map[string]any
-	SearchDomains    []string
-	SourceFetcher    SourceFetcher
+	Token                 string
+	DataDir               string
+	Timeout               time.Duration
+	MaxConcurrent         int
+	ProviderSettings      map[string]any
+	SearchDomains         []string
+	SourceFetcher         SourceFetcher
+	SearchProviderFactory func([]string) (collector.Provider, error)
+	SourceFetcherFactory  func([]string) SourceFetcher
+	AnalysisProvider      collector.Provider
+	AnalysisSettings      map[string]any
+	ExportProvider        collector.Provider
+	ExportSettings        map[string]any
 }
 
 type Server struct {
-	cfg            Config
-	provider       collector.Provider
-	fetcher        SourceFetcher
-	dynamicFetcher bool
-	slots          chan struct{}
-	mux            *http.ServeMux
+	cfg              Config
+	provider         collector.Provider
+	fetcher          SourceFetcher
+	dynamicFetcher   bool
+	slots            chan struct{}
+	mux              *http.ServeMux
+	discoverySources []researchDiscoverySource
 }
 
 type Run struct {
@@ -62,6 +71,9 @@ type Run struct {
 	Error          string          `json:"error,omitzero"`
 	Research       *Research       `json:"research,omitzero"`
 	Collection     *Collection     `json:"collection,omitzero"`
+	Analysis       *AnalysisAudit  `json:"analysis,omitzero"`
+	Export         *ExportAudit    `json:"export,omitzero"`
+	Pipeline       *PipelineAudit  `json:"pipeline,omitzero"`
 }
 
 func New(cfg Config, provider collector.Provider) (*Server, error) {
@@ -96,6 +108,10 @@ func New(cfg Config, provider collector.Provider) (*Server, error) {
 		respond(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	s.mux.Handle("POST /v1/collect", s.auth(http.HandlerFunc(s.createCollection)))
+	s.mux.Handle("POST /v1/analyze", s.auth(http.HandlerFunc(s.createAnalysis)))
+	s.mux.Handle("POST /v1/export", s.auth(http.HandlerFunc(s.createExport)))
+	s.mux.Handle("POST /v1/pipeline/web", s.auth(http.HandlerFunc(s.createPipelineWeb)))
+	s.mux.Handle("POST /v1/pipeline/news", s.auth(http.HandlerFunc(s.createPipelineNews)))
 	s.mux.Handle("GET /v1/runs/{id}", s.auth(http.HandlerFunc(s.getRun)))
 	return s, nil
 }
@@ -120,7 +136,17 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		actual := sha256.Sum256([]byte(token))
 		if !ok || subtle.ConstantTimeCompare(actual[:], expected[:]) != 1 {
 			w.Header().Set("WWW-Authenticate", "Bearer")
-			fail(w, http.StatusUnauthorized, "unauthorized", "A service bearer token is required", "")
+			message := "A service bearer token is required"
+			if r.URL.Path == "/v1/export" {
+				w.Header().Set("Content-Language", newsLocale(r.Header.Get("Accept-Language")))
+				w.Header().Add("Vary", "Accept-Language")
+				message = exportMessage(r, "unauthorized")
+			}
+			if r.URL.Path == "/v1/pipeline/web" || r.URL.Path == "/v1/pipeline/news" {
+				pipelineLanguage(w, r)
+				message = pipelineMessage(r, "unauthorized")
+			}
+			fail(w, http.StatusUnauthorized, "unauthorized", message, "")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -171,7 +197,7 @@ func (s *Server) newRun(mode string, input any, instructions string) Run {
 	return Run{ID: hex.EncodeToString(id), Mode: mode, Status: "completed", CreatedAt: time.Now().UTC(), Input: raw, InputSHA256: hex.EncodeToString(hash[:]), Instructions: instructions, Settings: s.cfg.ProviderSettings}
 }
 
-func (s *Server) complete(w http.ResponseWriter, run *Run, err error) {
+func (s *Server) complete(w http.ResponseWriter, r *http.Request, run *Run, err error) {
 	run.CompletedAt = time.Now().UTC()
 	status := http.StatusCreated
 	if err != nil {
@@ -189,9 +215,34 @@ func (s *Server) complete(w http.ResponseWriter, run *Run, err error) {
 			status = http.StatusRequestTimeout
 			run.Error = "Collection was cancelled"
 		}
+		if run.Mode == "analysis" || run.Mode == "export" {
+			key := "generation_failed"
+			if errors.Is(err, analysis.ErrInvalidModelOutput) || errors.Is(err, export.ErrInvalidModelOutput) {
+				key = "invalid_model_output"
+			}
+			if response, ok := errors.AsType[*yandex.ResponseError](err); ok {
+				if response.Reason == "content_filter" || response.Reason == "max_output_tokens" || response.Reason == "refusal" {
+					key = response.Reason
+				}
+			}
+			if status == http.StatusGatewayTimeout {
+				key = "timeout"
+			} else if status == http.StatusRequestTimeout {
+				key = "cancelled"
+			}
+			if run.Mode == "export" {
+				run.Error = exportMessage(r, key)
+			} else {
+				run.Error = analysisMessage(r, key)
+			}
+		}
 	}
 	if saveErr := s.save(*run); saveErr != nil {
-		fail(w, http.StatusInternalServerError, "storage_error", "Could not persist the run; no result is reported as saved", "")
+		message := "Could not persist the run; no result is reported as saved"
+		if run.Mode == "export" {
+			message = exportMessage(r, "storage_error")
+		}
+		fail(w, http.StatusInternalServerError, "storage_error", message, "")
 		return
 	}
 	if err != nil {
@@ -199,7 +250,23 @@ func (s *Server) complete(w http.ResponseWriter, run *Run, err error) {
 		return
 	}
 	w.Header().Set("Location", "/v1/runs/"+run.ID)
-	respond(w, status, run)
+	w.Header().Set("X-Run-ID", run.ID)
+	locale := newsLocale(r.Header.Get("Accept-Language"))
+	w.Header().Set("Content-Language", locale)
+	w.Header().Add("Vary", "Accept-Language")
+	if run.Mode == "analysis" {
+		// Model output is source-derived Russian content, not an English translation.
+		w.Header().Set("Content-Language", "ru")
+		respond(w, status, run.Analysis.Result)
+		return
+	}
+	if run.Mode == "export" {
+		// The four artifacts are Russian source-derived content regardless of error locale.
+		w.Header().Set("Content-Language", "ru")
+		respond(w, status, run.Export.Result)
+		return
+	}
+	respond(w, status, newsDataset(run.Collection, locale))
 }
 
 func (s *Server) save(run Run) error {

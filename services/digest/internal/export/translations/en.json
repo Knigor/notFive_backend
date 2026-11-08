@@ -1,0 +1,5 @@
+{
+  "extra_event": "The model added unselected group %s; it was not included in the files.",
+  "unconfirmed_group": "Group %s requires source review; the model text was preserved without manual editing: %s.",
+  "length_limit": "File %s contains %d characters excluding URLs and formatting, exceeding the limit of %d; it needs shortening. The file was saved without truncation."
+}

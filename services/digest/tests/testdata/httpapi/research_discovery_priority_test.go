@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -61,10 +60,7 @@ func TestResearchHTMLListingsCannotCrowdOutFreshFeedsOrWebSearch(t *testing.T) {
 	if response.Code != 201 {
 		t.Fatalf("status %d: %s", response.Code, response.Body.String())
 	}
-	var run Run
-	if err := json.Unmarshal(response.Body.Bytes(), &run); err != nil {
-		t.Fatal(err)
-	}
+	run := savedRunFromCollection(t, server, response)
 	got := []string{}
 	for _, source := range run.Research.Sources {
 		got = append(got, source.URL)

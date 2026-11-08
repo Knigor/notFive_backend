@@ -90,27 +90,34 @@ func (s *Server) createCollection(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), s.cfg.Timeout)
 	defer cancel()
 	run, err := s.collectRun(ctx, input, s.cfg.SearchDomains)
-	s.complete(w, &run, err)
+	s.complete(w, r, &run, err)
 }
 
 func (s *Server) collectRun(ctx context.Context, input researchRequest, domains []string) (Run, error) {
 	control, _ := time.Parse(time.RFC3339, input.ControlTime)
-	control = control.In(time.FixedZone("Europe/Moscow", 3*60*60))
 	worker := *s
 	worker.cfg.SearchDomains = slices.Clone(domains)
 	if s.dynamicFetcher {
 		worker.fetcher = news.New(domains)
 	}
 	ctx = collector.WithDomains(ctx, domains)
-	modelInput := researchSearchInput(control, input.Query, domains, nil, maxResearchCandidates)
 	run := s.newRun("collection", input, researchInstructions)
+	err := worker.collect(ctx, input, control, &run)
+	return run, err
+}
+
+// collect is shared by GraphQL, the standalone REST endpoint and the full
+// pipeline. It fills the supplied audit; callers own timeouts and persistence.
+func (s *Server) collect(ctx context.Context, input researchRequest, control time.Time, run *Run) error {
+	control = control.In(time.FixedZone("Europe/Moscow", 3*60*60))
+	modelInput := researchSearchInput(control, input.Query, s.cfg.SearchDomains, nil, maxResearchCandidates)
 	gen, err := s.provider.Generate(ctx, researchInstructions, modelInput)
 	research := Research{
 		PromptVersion: researchPromptVersion, Status: "failed", ControlTime: control.Format(time.RFC3339Nano),
 		WindowStart: control.Add(-24 * time.Hour).Format(time.RFC3339Nano), ModelInput: modelInput, Generation: gen,
 		SearchAttempts: []ResearchSearchAttempt{{ModelInput: modelInput, Generation: gen}}, RejectedCandidates: []RejectedResearchCandidate{},
 		Discovery:      []ResearchDiscoveryAttempt{},
-		AllowedDomains: slices.Clone(domains),
+		AllowedDomains: slices.Clone(s.cfg.SearchDomains),
 		CitationURLs:   []string{}, CitationRefs: []string{}, SearchCalls: []json.RawMessage{},
 		Sources: []ResearchSource{}, ExcludedSources: []ResearchSource{}, Warnings: []string{},
 		Limitations: []string{
@@ -123,7 +130,7 @@ func (s *Server) collectRun(ctx context.Context, input researchRequest, domains 
 	run.Research = &research
 	extractSearchTrace(&research)
 	if err != nil {
-		return run, err
+		return err
 	}
 	if !research.SearchObserved {
 		research.Warnings = append(research.Warnings, "Провайдер не передал web_search_call в трассе; факт поискового вызова не подтверждён аудитом.")
@@ -131,22 +138,22 @@ func (s *Server) collectRun(ctx context.Context, input researchRequest, domains 
 	parsed := researchCandidates(gen.Text, &research)
 	research.SearchAttempts[0].Candidates = parsed
 	seen := map[string]bool{}
-	feedCandidates, htmlCandidates := worker.discoverResearchSources(ctx, &research, control)
+	feedCandidates, htmlCandidates := s.discoverResearchSources(ctx, &research, control)
 	candidates := appendArticleCandidates(nil, feedCandidates, &research, seen)
 	candidates = appendArticleCandidates(candidates, parsed, &research, seen)
 	candidates = appendArticleCandidates(candidates, htmlCandidates, &research, seen)
 	// One bounded clarification replaces listing URLs with article permalinks.
 	// It is not a transport retry and never expands the publication time window.
 	if len(research.RejectedCandidates) > 0 && len(candidates) < maxResearchCandidates {
-		candidates = worker.refineArticleSearch(ctx, control, input.Query, candidates, &research, seen)
+		candidates = s.refineArticleSearch(ctx, control, input.Query, candidates, &research, seen)
 	}
-	articles := worker.fetchResearchSources(ctx, candidates, control, &research)
+	articles := s.fetchResearchSources(ctx, candidates, control, &research)
 	if err := ctx.Err(); err != nil {
-		return run, err
+		return err
 	}
 	research.Status = "completed"
 	run.Collection = collectArticles(articles, &research)
-	return run, nil
+	return nil
 }
 
 func researchCandidates(text string, research *Research) []searchCandidate {

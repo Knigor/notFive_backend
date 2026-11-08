@@ -1,0 +1,23 @@
+{
+  "unauthorized": "A service Bearer token is required.",
+  "invalid_input": "Provide control_time as ISO 8601 with a time zone.",
+  "invalid_json": "Expected one JSON object matching the selected endpoint contract; request limit is 1 MiB.",
+  "unavailable": "Both analysis and export models must be configured for the full pipeline.",
+  "busy": "All processing slots are busy. Try again later.",
+  "storage_error": "Could not persist the pipeline audit. No completed result is confirmed; further stages have stopped.",
+  "generation_failed": "A pipeline stage failed. Inspect the saved run audit and provider configuration.",
+  "invalid_model_output": "The model returned an unexpected structure. Details are saved in the audit; subsequent stages were not started.",
+  "timeout": "A stage or the full pipeline exceeded its time limit. Earlier results are saved in the audit.",
+  "cancelled": "The pipeline request was cancelled. Earlier results are saved in the audit.",
+  "content_filter": "Yandex stopped the response with its content filter. Partial output is saved in the audit; no automatic retry occurred.",
+  "max_output_tokens": "The model reached its output token limit. Check the affected stage's token budget; partial output is saved in the audit.",
+  "refusal": "The model refused the request. Its response is saved in the audit; no automatic retry occurred.",
+  "invalid_sites": "Provide sites as an array of 1 to 5 public sites: domains or HTTPS URLs without duplicates.",
+  "sites_unavailable": "Could not configure search for the supplied sites. Check service configuration.",
+  "invalid_control_time": "Provide control_time as ISO 8601 with a time zone.",
+  "invalid_period_start": "period_start must equal control_time minus 24 hours.",
+  "dataset_required": "A nonempty dataset name is required in news.json.",
+  "items_required": "An items array is required in news.json; an empty array is allowed.",
+  "invalid_article_ids": "Each material must have a nonempty, unique id.",
+  "analysis_input_too_large": "Eligible article text exceeds 120,000 characters; reduce the dataset."
+}

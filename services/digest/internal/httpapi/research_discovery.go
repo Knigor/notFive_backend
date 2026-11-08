@@ -24,7 +24,9 @@ type ResearchDiscoveryAttempt struct {
 
 // These entry points belong to the configured sources. A feed is a way to
 // discover article URLs; its dates never replace verification of the article.
-var researchDiscoverySources = []struct{ url, kind string }{
+type researchDiscoverySource struct{ url, kind string }
+
+var researchDiscoverySources = []researchDiscoverySource{
 	{"https://www.securitylab.ru/_services/export/rss/news/", "rss"},
 	{"https://xakep.ru/feed/", "rss"},
 	{"https://habr.com/ru/rss/hubs/infosecurity/news/?fl=ru", "rss"},
@@ -38,7 +40,11 @@ func (s *Server) discoverResearchSources(ctx context.Context, research *Research
 		return nil, nil
 	}
 	attempts := []ResearchDiscoveryAttempt{}
-	for _, source := range researchDiscoverySources {
+	sources := s.discoverySources
+	if sources == nil {
+		sources = researchDiscoverySources
+	}
+	for _, source := range sources {
 		if _, err := researchSourceURL(source.url, s.cfg.SearchDomains); err == nil {
 			attempts = append(attempts, ResearchDiscoveryAttempt{URL: source.url, Kind: source.kind, Candidates: []searchCandidate{}})
 		}

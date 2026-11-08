@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "notFive Article Collector API",
-    "version": "1.0.0",
-    "description": "Внутренний HTTP API Go-сборщика. Получает статьи и подтверждает даты в (T−24h,T]. Смысловой отбор, группировка и генерация дайджеста выполняются вызывающим приложением. POST синхронный и неидемпотентный; автоматические повторы могут повторно расходовать токены Yandex."
+    "title": "notFive News Pipeline API",
+    "version": "12",
+    "description": "Go API: /v1/pipeline/web собирает статьи с переданных sites и формирует файлы; /v1/pipeline/news принимает news.json и выполняет отбор, анализ и экспорт без поиска. Старый /v1/pipeline удалён. Отдельные collect/analyze/export сохранены. Запросы синхронные, неидемпотентные, с Bearer-токеном."
   },
   "servers": [
     {
@@ -56,7 +56,7 @@
       "post": {
         "operationId": "collectArticles",
         "summary": "Найти и загрузить статьи за 24 часа до контрольного времени",
-        "description": "Тело до 1 MiB. Домены и модель задаёт оператор сервиса. До 12 выбранных для загрузки URL; пустой articles является успешным результатом. Для REQUEST_TIMEOUT=180s используйте общий таймаут клиента не меньше 200 секунд. Повторный POST создаёт новый запуск.",
+        "description": "Тело до 1 MiB. Домены и модель задаёт оператор сервиса. До 12 выбранных для загрузки URL; ответ в формате news.json организаторов с dataset=web и items только из принятых статей. Пустой items является успешным результатом. Для REQUEST_TIMEOUT=180s используйте общий таймаут клиента не меньше 200 секунд. Повторный POST создаёт новый запуск.",
         "requestBody": {
           "required": true,
           "content": {
@@ -69,7 +69,7 @@
         },
         "responses": {
           "201": {
-            "description": "Сбор завершён и сохранён; статьи в collection.articles",
+            "description": "Сбор завершён и сохранён; документ news.json со статьями в items. Полный аудит доступен по Location.",
             "headers": {
               "Location": {
                 "description": "Путь GET для сохранённого запуска",
@@ -77,12 +77,29 @@
                   "type": "string",
                   "pattern": "^/v1/runs/[a-f0-9]{32}$"
                 }
+              },
+              "X-Run-ID": {
+                "description": "ID сохранённого запуска",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{32}$"
+                }
+              },
+              "Content-Language": {
+                "description": "Язык метаданных description и fields, не язык исходных статей",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "ru",
+                    "en"
+                  ]
+                }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CollectionRun"
+                  "$ref": "#/components/schemas/NewsDataset"
                 }
               }
             }
@@ -196,14 +213,27 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "required": false,
+            "description": "Язык description и значений fields: ru или en; запасной язык ru. Исходные тексты публикаций не переводятся.",
+            "schema": {
+              "type": "string",
+              "default": "ru"
+            },
+            "example": "en"
+          }
+        ]
       }
     },
     "/v1/runs/{id}": {
       "get": {
         "operationId": "getRun",
         "summary": "Получить сохранённый запуск без нового поиска",
-        "description": "HTTP 200 означает успешное чтение. Поле status может быть failed. Получение происходит по известному id, API фоновых заданий или поиска последнего запуска нет.",
+        "description": "HTTP 200 означает успешное чтение. Поле status может быть running, completed или failed. Для pipeline сохраняются промежуточные результаты и текущий этап. Получение происходит по известному id, фоновой очереди или поиска последнего запуска нет; GET не вызывает модель.",
         "parameters": [
           {
             "name": "id",
@@ -257,6 +287,750 @@
             }
           }
         }
+      }
+    },
+    "/v1/analyze": {
+      "post": {
+        "operationId": "analyzeArticles",
+        "summary": "Сгруппировать готовые статьи и выбрать до пяти событий без веб-поиска",
+        "description": "Принимает news.json до 1 MiB. Сначала проверяются ID и период (T−24h,T] по Москве, исключаются ошибки загрузки, неизвестные даты и пустой текст. Только оставшиеся тексты передаются модели анализа. Если подходящих статей нет, возвращается пустой результат без вызова модели. Повторный POST создаёт новый запуск; общий таймаут клиента не меньше REQUEST_TIMEOUT + запас (по умолчанию 200 секунд). Модель вызывается со strict JSON Schema news_analysis_v2 (internal/analysis/schema.json); внутренние массивы groups/excluded преобразуются в публичные объекты без редактирования фактов. Промпт news-analysis-v2-json-schema.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Анализ завершён и сохранён; тело analysis.json. Полный аудит доступен по Location.",
+            "headers": {
+              "Location": {
+                "description": "Путь GET для сохранённого запуска",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^/v1/runs/[a-f0-9]{32}$"
+                }
+              },
+              "X-Run-ID": {
+                "description": "ID сохранённого запуска",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{32}$"
+                }
+              },
+              "Content-Language": {
+                "description": "Язык содержимого анализа: русский. Accept-Language меняет только служебные сообщения.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "ru"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json: некорректный JSON, несколько JSON-значений или неизвестные поля",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized: отсутствует или не подходит токен",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Bearer"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "generation_failed: запрос отменён; run_id присутствует, если ошибка сохранена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "invalid_json: тело больше 1 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "invalid_input: некорректные метаданные/ID, период или превышение лимита текстов.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "busy: все слоты заняты",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "5"
+                  ]
+                },
+                "description": "Число секунд"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "storage_error: не удалось сохранить результат; нет подтверждения сохранения",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "generation_failed: ошибка провайдера, incomplete/content_filter, max_output_tokens, refusal или некорректный JSON модели; run_id присутствует, если аудит сохранён. Частичный ответ не возвращается как готовый анализ.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "generation_failed: истёк REQUEST_TIMEOUT; run_id присутствует, если ошибка сохранена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "analysis_unavailable: провайдер анализа не настроен.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "required": false,
+            "description": "Язык служебных сообщений: ru или en, запасной ru. Исходные публикации и русский анализ не переводятся.",
+            "schema": {
+              "type": "string",
+              "default": "ru"
+            },
+            "example": "en"
+          }
+        ]
+      }
+    },
+    "/v1/export": {
+      "post": {
+        "operationId": "exportDigestFiles",
+        "summary": "Создать дайджест, пост, предпросмотр письма и журнал из анализа и исходных новостей",
+        "description": "Принимает {analysis,news} до 1 MiB. Набор и период двух документов должны совпадать. Сохраняет выбранные группы и их порядок из recommended_order; URL, ID, даты и источники берёт из news. Alice пишет тексты без веб-поиска со строгой JSON Schema; код форматирует четыре файла и формирует одну строку журнала на входной материал. Пустой выбор обрабатывается без модели. Проблемы содержания/длины возвращаются в warnings; ошибочная привязка источника не исправляется заменой ID. Повторный POST создаёт новый запуск и может расходовать токены. Файлы содержат русский выпуск; Accept-Language переводит только служебные сообщения. Содержательную прозу пишет только Alice. Отсутствие обязательного текста или нарушенная структура дают ошибку без ручных текстовых замен и автоматической смены модели.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Четыре файла сформированы и сохранены. Строки files готовы к сохранению на стороне клиента; полный аудит доступен по Location.",
+            "headers": {
+              "Location": {
+                "description": "Путь GET для сохранённого запуска",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^/v1/runs/[a-f0-9]{32}$"
+                }
+              },
+              "X-Run-ID": {
+                "description": "ID сохранённого запуска",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{32}$"
+                }
+              },
+              "Content-Language": {
+                "description": "Содержимое выпуска на русском; язык служебных сообщений выбирается отдельно.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "ru"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json: некорректный JSON, несколько JSON-значений или неизвестные поля",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized: отсутствует или не подходит токен",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Bearer"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "generation_failed: запрос отменён; run_id присутствует, если ошибка сохранена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "invalid_json: тело больше 1 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "invalid_input: несовпадение метаданных набора/периода, некорректный анализ или исходные ID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "busy: все слоты заняты",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "5"
+                  ]
+                },
+                "description": "Число секунд"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "storage_error: не удалось сохранить результат; нет подтверждения сохранения",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "generation_failed: ошибка провайдера, incomplete/content_filter, max_output_tokens, refusal или некорректный структурированный ответ модели. Частичный ответ не выдаётся как готовые файлы; сохранённый аудит доступен по run_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "generation_failed: истёк REQUEST_TIMEOUT; run_id присутствует, если ошибка сохранена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "export_unavailable: провайдер экспорта не настроен.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "required": false,
+            "description": "Язык служебных сообщений: ru или en, запасной ru. Исходные статьи и русский выпуск не переводятся.",
+            "schema": {
+              "type": "string",
+              "default": "ru"
+            },
+            "example": "en"
+          }
+        ]
+      }
+    },
+    "/v1/pipeline/web": {
+      "post": {
+        "operationId": "runWebPipeline",
+        "summary": "Сбор с sites, анализ и четыре файла",
+        "description": "Вход control_time/sites, до 1 MiB. query не принимается из тела (HTTP 400), поисковый запрос фиксирован на сервере в pipelineSearchQuery: «Найди свежие новости кибербезопасности за заданные 24 часа, важные для российских организаций: новые уязвимости, инциденты, утечки и защитные меры. Не включай прогнозы, годовые отчёты и вечнозелёные обзоры. Укажи даты, источники, последствия и оговорки. Если подходящих публикаций нет, прямо сообщи об этом и ничего не выдумывай.» sites: массив 1..5 публичных доменов или HTTPS URL; раздел задаёт HTML-источник ссылок, поиск ограничен доменом. Настройки изолированы между запросами. Один слот, до 3 x REQUEST_TIMEOUT (540 секунд по умолчанию). При ошибке следующие этапы остановлены, частичный аудит доступен по run_id. Повторный POST запускает новый цикл.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineWebRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Полный цикл завершён и сохранён; новости, анализ, четыре файла и предупреждения.",
+            "headers": {
+              "Location": {
+                "description": "Путь GET для сохранённого запуска",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^/v1/runs/[a-f0-9]{32}$"
+                }
+              },
+              "X-Run-ID": {
+                "description": "ID сохранённого запуска",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{32}$"
+                }
+              },
+              "Content-Language": {
+                "description": "Содержимое выпуска на русском; язык служебных сообщений выбирается отдельно.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "ru"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json: неверный JSON, несколько значений или неизвестные поля, включая query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized: отсутствует или не подходит Bearer-токен.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Bearer"
+              }
+            }
+          },
+          "408": {
+            "description": "pipeline_failed: запрос отменён; последующие этапы не выполняются.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "invalid_json: тело больше 1 MiB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "invalid_input: неверные control_time/sites, повторы доменов или недопустимые URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "busy: все слоты заняты; цикл не начат.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "5"
+                  ]
+                },
+                "description": "Число секунд"
+              }
+            }
+          },
+          "500": {
+            "description": "storage_error: сохранение не подтверждено; существующий аудит может содержать более ранний этап.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "pipeline_failed: ошибка провайдера, структуры или подготовки следующего этапа. Частичный результат сохраняется в аудите, но не выдаётся как готовый выпуск.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "pipeline_unavailable: провайдер или настройка источников недоступны.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "pipeline_failed: истёк таймаут этапа или всего цикла.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "required": false,
+            "description": "Язык служебных сообщений: ru или en, запасной ru. Исходные статьи и русский выпуск не переводятся.",
+            "schema": {
+              "type": "string",
+              "default": "ru"
+            },
+            "example": "en"
+          }
+        ]
+      }
+    },
+    "/v1/pipeline/news": {
+      "post": {
+        "operationId": "runDatasetPipeline",
+        "summary": "Отбор из news.json, анализ и четыре файла",
+        "description": "Сам news.json в теле application/json, без обёртки и multipart. Поиск, RSS/HTML и загрузка URL не выполняются. T берётся из файла; даты фильтруются строго в (T-24h,T]. Исходные items остаются в news и журнале, metadata времени нормализуется в Москву. Нет лимита 12 статей; тело до 1 MiB, тексты допущенных статей до 120000 символов. Один слот, до 2 x REQUEST_TIMEOUT (360 секунд). Анализ и экспорт пустого набора не вызывают модель. Аудит source=news без collection/research. Повторный POST повторяет анализ и генерацию.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineNewsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Полный цикл завершён и сохранён; новости, анализ, четыре файла и предупреждения.",
+            "headers": {
+              "Location": {
+                "description": "Путь GET для сохранённого запуска",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^/v1/runs/[a-f0-9]{32}$"
+                }
+              },
+              "X-Run-ID": {
+                "description": "ID сохранённого запуска",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{32}$"
+                }
+              },
+              "Content-Language": {
+                "description": "Содержимое выпуска на русском; язык служебных сообщений выбирается отдельно.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "ru"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json: неверный JSON, несколько значений или неизвестные поля.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized: отсутствует или не подходит Bearer-токен.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            },
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Bearer"
+              }
+            }
+          },
+          "408": {
+            "description": "pipeline_failed: запрос отменён; последующие этапы не выполняются.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "invalid_json: тело больше 1 MiB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "invalid_input: неверные metadata/период, отсутствующий items, пустые или повторяющиеся ID, превышение лимита текстов.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "busy: все слоты заняты; цикл не начат.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "5"
+                  ]
+                },
+                "description": "Число секунд"
+              }
+            }
+          },
+          "500": {
+            "description": "storage_error: сохранение не подтверждено; существующий аудит может содержать более ранний этап.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "pipeline_failed: ошибка провайдера, структуры или подготовки следующего этапа. Частичный результат сохраняется в аудите, но не выдаётся как готовый выпуск.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "pipeline_unavailable: модель анализа или экспорта не настроена.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "pipeline_failed: истёк таймаут этапа или всего цикла.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Accept-Language",
+            "in": "header",
+            "required": false,
+            "description": "Язык служебных сообщений: ru или en, запасной ru. Исходные статьи и русский выпуск не переводятся.",
+            "schema": {
+              "type": "string",
+              "default": "ru"
+            },
+            "example": "en"
+          }
+        ]
       }
     }
   },
@@ -661,11 +1435,12 @@
           },
           "mode": {
             "type": "string",
-            "description": "Новые запуски: collection. Сохранённые старые запуски могут иметь другой mode."
+            "description": "Новые запуски: collection, analysis, export или pipeline. Сохранённые старые запуски могут иметь другой mode."
           },
           "status": {
             "type": "string",
             "enum": [
+              "running",
               "completed",
               "failed"
             ]
@@ -709,36 +1484,17 @@
           },
           "research": {
             "$ref": "#/components/schemas/ResearchAudit"
+          },
+          "analysis": {
+            "$ref": "#/components/schemas/AnalysisAudit"
+          },
+          "export": {
+            "$ref": "#/components/schemas/ExportAudit"
+          },
+          "pipeline": {
+            "$ref": "#/components/schemas/PipelineAudit"
           }
         }
-      },
-      "CollectionRun": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Run"
-          },
-          {
-            "type": "object",
-            "required": [
-              "collection",
-              "research"
-            ],
-            "properties": {
-              "mode": {
-                "type": "string",
-                "enum": [
-                  "collection"
-                ]
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "completed"
-                ]
-              }
-            }
-          }
-        ]
       },
       "Error": {
         "type": "object",
@@ -758,6 +1514,898 @@
             "type": "string",
             "pattern": "^[a-f0-9]{32}$",
             "description": "Только если ошибочный запуск сохранён."
+          }
+        }
+      },
+      "NewsItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "text",
+          "source",
+          "url",
+          "published_at",
+          "missing",
+          "error"
+        ],
+        "additionalProperties": false,
+        "description": "Исходный материал в формате news.json. Экспортируются только статьи, прошедшие загрузку и проверку даты; это не смысловой отбор по ИБ.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Сохранённый ID исходного материала"
+          },
+          "title": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "description": "Извлечённый текст страницы без дополнительного пересказа; null допустим форматом при отсутствии текста."
+          },
+          "source": {
+            "type": "string",
+            "description": "Кто опубликовал материал; сохраняется из коллекции"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Конечная ссылка на публикацию"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Исходная дата публикации с часовым поясом; null допустим форматом при неизвестной дате. Коллектор исключает такие статьи."
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "id",
+                "title",
+                "text",
+                "source",
+                "url",
+                "published_at"
+              ]
+            },
+            "uniqueItems": true,
+            "description": "Незаполненные поля; при полном материале []."
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Ошибка получения материала; у успешно принятых статей null."
+          }
+        }
+      },
+      "NewsFields": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "text",
+          "source",
+          "url",
+          "published_at",
+          "missing",
+          "error"
+        ],
+        "additionalProperties": false,
+        "description": "Описания полей материала на выбранном языке метаданных.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "published_at": {
+            "type": "string"
+          },
+          "missing": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "NewsDataset": {
+        "type": "object",
+        "required": [
+          "dataset",
+          "control_time",
+          "period_start",
+          "timezone",
+          "description",
+          "fields",
+          "items"
+        ],
+        "additionalProperties": false,
+        "description": "Структура news.json организаторов для набора реально собранных статей. ID запуска и ссылка на аудит передаются HTTP-заголовками.",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "enum": [
+              "web"
+            ]
+          },
+          "control_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Контрольное время T, нормализованное в Москву."
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Исключённая нижняя граница T−24 часа; публикации отбираются в (period_start,control_time]."
+          },
+          "timezone": {
+            "type": "string",
+            "enum": [
+              "Europe/Moscow"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "Описание набора на языке метаданных."
+          },
+          "fields": {
+            "$ref": "#/components/schemas/NewsFields"
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+              "$ref": "#/components/schemas/NewsItem"
+            },
+            "description": "Принятые статьи. Пустой массив является успешным результатом."
+          }
+        }
+      },
+      "AnalysisRequest": {
+        "type": "object",
+        "required": [
+          "dataset",
+          "control_time",
+          "items"
+        ],
+        "additionalProperties": false,
+        "description": "Готовые статьи в формате news.json. Тело до 1 MiB; items может быть пустым. Сумма символов текстов допущенных статей не более 120000 Unicode code points; это технический лимит, не подсчёт токенов.",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Имя входного набора: например web или train."
+          },
+          "control_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Контрольное время T, нормализованное в Москву."
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Если задано, должно совпадать с control_time минус 24 часа."
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Нормализуется сервером в Europe/Moscow."
+          },
+          "description": {
+            "type": "string",
+            "description": "Описание набора на языке метаданных."
+          },
+          "fields": {
+            "$ref": "#/components/schemas/NewsFields"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalysisArticle"
+            },
+            "description": "Принятые статьи. Пустой массив является успешным результатом."
+          }
+        }
+      },
+      "AnalysisArticle": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false,
+        "description": "ID обязателен и уникален в наборе. Ошибки получения, отсутствие текста/даты и дата вне периода дают исключение с причиной до модели.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Сохранённый ID исходного материала",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "description": "Извлечённый текст страницы без дополнительного пересказа; null допустим форматом при отсутствии текста."
+          },
+          "source": {
+            "type": "string",
+            "description": "Кто опубликовал материал; сохраняется из коллекции"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Конечная ссылка на публикацию"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Исходная дата публикации с часовым поясом; null допустим форматом при неизвестной дате. Коллектор исключает такие статьи."
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "id",
+                "title",
+                "text",
+                "source",
+                "url",
+                "published_at"
+              ]
+            },
+            "uniqueItems": true,
+            "description": "Незаполненные поля; при полном материале []."
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Ошибка получения материала; у успешно принятых статей null."
+          }
+        }
+      },
+      "AnalysisEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "article_id",
+          "quote"
+        ],
+        "properties": {
+          "article_id": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string",
+            "description": "Дословный фрагмент текста источника."
+          }
+        }
+      },
+      "AnalysisFact": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "statement",
+          "source_ids",
+          "evidence"
+        ],
+        "properties": {
+          "statement": {
+            "type": "string"
+          },
+          "source_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalysisEvidence"
+            }
+          }
+        }
+      },
+      "AnalysisContradiction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "description",
+          "source_ids"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "source_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AnalysisGroup": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "ids",
+          "facts",
+          "contradictions",
+          "selection_reason"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalysisFact"
+            }
+          },
+          "contradictions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalysisContradiction"
+            }
+          },
+          "selection_reason": {
+            "type": "string"
+          }
+        }
+      },
+      "AnalysisResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "dataset",
+          "control_time",
+          "period_start",
+          "timezone",
+          "groups",
+          "recommended_order",
+          "excluded",
+          "warnings"
+        ],
+        "properties": {
+          "dataset": {
+            "type": "string"
+          },
+          "control_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timezone": {
+            "type": "string",
+            "enum": [
+              "Europe/Moscow"
+            ]
+          },
+          "groups": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AnalysisGroup"
+            },
+            "description": "Все найденные группы. Групп может быть больше пяти; один исходный ID может входить в несколько групп."
+          },
+          "recommended_order": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "description": "ID выбранных групп по важности."
+          },
+          "excluded": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "ID материала → причина исключения."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AnalysisAudit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "prompt_version",
+          "model_input",
+          "generation"
+        ],
+        "properties": {
+          "prompt_version": {
+            "type": "string",
+            "example": "news-analysis-v2-json-schema"
+          },
+          "model_input": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Полный ответ провайдера и фактические usage/trace. В версии 9 JSON модели содержит groups/excluded как массивы; result содержит публичные объекты. При пропуске модели поля могут быть нулевыми."
+          },
+          "result": {
+            "$ref": "#/components/schemas/AnalysisResult"
+          },
+          "failure_reason": {
+            "type": "string",
+            "description": "Необязательная причина незавершённого ответа/отказа провайдера: например content_filter, max_output_tokens или refusal. Частичный ответ хранится в generation, готового result нет."
+          }
+        }
+      },
+      "ExportRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "analysis",
+          "news"
+        ],
+        "properties": {
+          "analysis": {
+            "$ref": "#/components/schemas/AnalysisResult"
+          },
+          "news": {
+            "$ref": "#/components/schemas/AnalysisRequest"
+          }
+        },
+        "description": "Анализ и исходные статьи одного набора/периода. Полное тело до 1 MiB. URLs и даты не восстанавливаются из текста анализа."
+      },
+      "ExportResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "files",
+          "warnings"
+        ],
+        "properties": {
+          "files": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "digest.md",
+              "post.md",
+              "email.md",
+              "journal.csv"
+            ],
+            "properties": {
+              "digest.md": {
+                "type": "string",
+                "description": "Русский дайджест в Markdown, до пяти выбранных событий."
+              },
+              "post.md": {
+                "type": "string",
+                "description": "Русский пост в Markdown, те же события и порядок."
+              },
+              "email.md": {
+                "type": "string",
+                "description": "Предпросмотр письма: тема, период и полный текст дайджеста. Ничего не отправляется."
+              },
+              "journal.csv": {
+                "type": "string",
+                "description": "CSV UTF-8 с разделителем ; и колонками id;status;group;reason;error. Одна строка на входной материал."
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Исходные предупреждения анализа и замечания экспорта. Проблемы длины и содержания не блокируют выдачу."
+          }
+        }
+      },
+      "ExportAudit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "prompt_version",
+          "model_input",
+          "generation"
+        ],
+        "properties": {
+          "prompt_version": {
+            "type": "string"
+          },
+          "model_input": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Полный ответ провайдера, usage и trace. Если событий нет, модель не вызывается и поля генерации могут быть нулевыми."
+          },
+          "result": {
+            "$ref": "#/components/schemas/ExportResult"
+          },
+          "failure_reason": {
+            "type": "string",
+            "description": "Необязательная причина незавершённого ответа/отказа провайдера: например content_filter, max_output_tokens или refusal. Частичный ответ хранится в generation, готового result нет."
+          }
+        }
+      },
+      "PipelineResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "run_id",
+          "status",
+          "news",
+          "analysis",
+          "files",
+          "warnings"
+        ],
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed"
+            ]
+          },
+          "news": {
+            "$ref": "#/components/schemas/PipelineNewsDataset"
+          },
+          "analysis": {
+            "$ref": "#/components/schemas/AnalysisResult"
+          },
+          "files": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "digest.md",
+              "post.md",
+              "email.md",
+              "journal.csv"
+            ],
+            "properties": {
+              "digest.md": {
+                "type": "string",
+                "description": "Русский дайджест в Markdown, до пяти выбранных событий."
+              },
+              "post.md": {
+                "type": "string",
+                "description": "Русский пост в Markdown, те же события и порядок."
+              },
+              "email.md": {
+                "type": "string",
+                "description": "Предпросмотр письма: тема, период и полный текст дайджеста. Ничего не отправляется."
+              },
+              "journal.csv": {
+                "type": "string",
+                "description": "CSV UTF-8 с разделителем ; и колонками id;status;group;reason;error. Одна строка на входной материал."
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Предупреждения сбора, анализа и экспорта без повторяющихся строк. Статьи и русский выпуск не переводятся."
+          }
+        }
+      },
+      "PipelineAudit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "stage",
+          "instructions"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "enum": [
+              "pipeline-v1",
+              "pipeline-v2"
+            ]
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "collection",
+              "analysis",
+              "export",
+              "completed"
+            ]
+          },
+          "instructions": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "analysis",
+              "export"
+            ],
+            "properties": {
+              "collection": {
+                "type": "string"
+              },
+              "analysis": {
+                "type": "string"
+              },
+              "export": {
+                "type": "string"
+              }
+            },
+            "description": "Промпты использованных этапов. collection отсутствует в news-сценарии."
+          },
+          "news": {
+            "$ref": "#/components/schemas/PipelineNewsDataset"
+          },
+          "result": {
+            "$ref": "#/components/schemas/PipelineResult"
+          },
+          "failure_reason": {
+            "type": "string",
+            "description": "Безопасный технический код сбоя, если цикл не завершился."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "web",
+              "news"
+            ],
+            "description": "Источник запуска pipeline-v2; в старых аудитах pipeline-v1 отсутствует."
+          }
+        }
+      },
+      "PipelineError": {
+        "type": "object",
+        "required": [
+          "error",
+          "message"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$",
+            "description": "ID назначенного запуска. При storage_error сохранение не подтверждено: аудит может отсутствовать или содержать предыдущий этап."
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "collection",
+              "analysis",
+              "export"
+            ],
+            "description": "Этап, на котором цикл остановлен. До запуска этапов поле может отсутствовать."
+          }
+        }
+      },
+      "PipelineWebRequest": {
+        "type": "object",
+        "required": [
+          "control_time",
+          "sites"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "control_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "T с явным часовым поясом. Нижняя граница T−24h исключена; T включено.",
+            "example": "2026-11-08T13:01:59+03:00"
+          },
+          "sites": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            "description": "Публичные домены либо HTTPS URL. Нормализованные домены уникальны; www и домен без www считаются одним сайтом. IP, локальные имена и учётные данные запрещены.",
+            "example": [
+              "https://www.securitylab.ru",
+              "https://xakep.ru",
+              "https://habr.com/ru/hubs/infosecurity/"
+            ]
+          }
+        },
+        "description": "Время и сайты для полного цикла. Поисковая тема задана сервером в pipelineSearchQuery; поле query не допускается."
+      },
+      "PipelineNewsArticle": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false,
+        "description": "Исходный материал файла. Ошибка получения, отсутствие текста или неизвестная/неверная дата приводят к исключению из анализа с сохранением строки журнала.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Сохранённый ID исходного материала",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "description": "Извлечённый текст страницы без дополнительного пересказа; null допустим форматом при отсутствии текста."
+          },
+          "source": {
+            "type": "string",
+            "description": "Кто опубликовал материал; сохраняется из коллекции"
+          },
+          "url": {
+            "type": "string",
+            "description": "Ссылка из файла; не загружается."
+          },
+          "published_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "Дата ISO 8601 с часовым поясом. Некорректная строка или null сохраняются и приводят к исключению материала."
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Незаполненные поля; при полном материале [].",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Ошибка получения материала; у успешно принятых статей null."
+          }
+        }
+      },
+      "PipelineNewsRequest": {
+        "type": "object",
+        "required": [
+          "dataset",
+          "control_time",
+          "items"
+        ],
+        "additionalProperties": false,
+        "description": "Сам файл news.json. dataset/control_time/items обязательны; неизвестные поля запрещены. Нет загрузки URL и лимита 12 статей. Пределы: тело 1 MiB, до 120000 символов текстов допущенных статей.",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Имя входного набора: например web или train."
+          },
+          "control_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Контрольное время T, нормализованное в Москву."
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Если задано, должно совпадать с control_time минус 24 часа."
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Нормализуется сервером в Europe/Moscow."
+          },
+          "description": {
+            "type": "string",
+            "description": "Описание набора на языке метаданных."
+          },
+          "fields": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Документация полей набора; не является инструкцией модели."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineNewsArticle"
+            },
+            "description": "Все материалы, включая впоследствии исключённые. Пустой массив допустим."
+          }
+        }
+      },
+      "PipelineNewsDataset": {
+        "type": "object",
+        "required": [
+          "dataset",
+          "control_time",
+          "period_start",
+          "timezone",
+          "description",
+          "fields",
+          "items"
+        ],
+        "additionalProperties": false,
+        "description": "Web: принятые коллектором статьи. News: все исходные items без изменения содержимого. control_time/period_start/timezone нормализованы в Москву.",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Имя входного набора: например web или train."
+          },
+          "control_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Контрольное время T, нормализованное в Москву."
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Если задано, должно совпадать с control_time минус 24 часа."
+          },
+          "timezone": {
+            "type": "string",
+            "enum": [
+              "Europe/Moscow"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "Описание набора на языке метаданных."
+          },
+          "fields": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Документация полей набора; не является инструкцией модели."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineNewsArticle"
+            },
+            "description": "Все материалы, включая впоследствии исключённые. Пустой массив допустим."
           }
         }
       }

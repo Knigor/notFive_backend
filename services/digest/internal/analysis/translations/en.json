@@ -1,0 +1,19 @@
+{
+  "read_error": "The source reported an error obtaining the material.",
+  "missing_text": "The publication text is unavailable.",
+  "missing_date": "The publication date is missing or lacks a valid time zone.",
+  "outside_period": "The publication date is outside (T−24h, T].",
+  "no_eligible_items": "No articles have both usable text and a date in the period; the model was not called.",
+  "unknown_selected_group": "The model selected missing group %s; it was not included in the event order.",
+  "duplicate_selected_group": "Group %s appeared more than once in the event order; the duplicate was removed.",
+  "selection_limit": "The model selected more than five events; only the first five unique existing groups were kept.",
+  "incomplete_group": "Group %s is missing a name, article references, or facts.",
+  "unknown_article": "Group %s references material %s that is unknown or does not belong to this group.",
+  "group_and_excluded": "Material %s appears in both a group and the exclusions.",
+  "unverified_fact": "Group %s contains a fact without a statement, article references, or verbatim evidence.",
+  "unverified_quote": "A quote in group %s for material %s is not verbatim or does not reference a source of the fact.",
+  "unknown_excluded": "The model excluded unknown material %s.",
+  "model_omitted_item": "The model did not account for the material; another analysis is needed.",
+  "unassigned_item": "The model skipped material %s; it was recorded with a technical exclusion reason.",
+  "no_selected_events": "The model selected no events for the final digest; material decisions are in groups and exclusions."
+}

@@ -71,10 +71,7 @@ func TestResearchRefinesListingsOnceAndUsesOnlyUniqueArticleTexts(t *testing.T) 
 	if response.Code != 201 {
 		t.Fatalf("status %d: %s", response.Code, response.Body.String())
 	}
-	var run Run
-	if err := json.Unmarshal(response.Body.Bytes(), &run); err != nil {
-		t.Fatal(err)
-	}
+	run := savedRunFromCollection(t, server, response)
 	if searchCalls != 2 || len(fetched) != 2 || len(run.Collection.Articles) != 2 || len(run.Research.Sources) != 2 {
 		t.Fatalf("unexpected calls/selections: search=%d fetched=%v articles=%+v", searchCalls, fetched, run.Collection.Articles)
 	}
@@ -120,10 +117,7 @@ func TestResearchRefinementFailurePreservesInitialArticle(t *testing.T) {
 	if response.Code != 201 {
 		t.Fatalf("refinement error discarded initial result: %d %s", response.Code, response.Body.String())
 	}
-	var run Run
-	if err := json.Unmarshal(response.Body.Bytes(), &run); err != nil {
-		t.Fatal(err)
-	}
+	run := savedRunFromCollection(t, server, response)
 	if searchCalls != 2 || fetchCalls != 1 || len(run.Research.Sources) != 1 || len(run.Research.SearchAttempts) != 2 {
 		t.Fatalf("wrong recovery: search=%d fetch=%d", searchCalls, fetchCalls)
 	}

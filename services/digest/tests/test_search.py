@@ -24,26 +24,27 @@ spec.loader.exec_module(search_cli)
 TOKEN = "only-a-local-test-token-with-32-plus-characters"
 PAYLOAD = {"control_time": "2026-11-08T13:01:59+03:00", "query": "Свежие новости ИБ"}
 RESULT = {
-    "status": "completed",
-    "id": "1" * 32,
-    "mode": "collection",
-    "collection": {
-        "control_time": PAYLOAD["control_time"],
-        "window_start": "2026-11-07T13:01:59+03:00",
-        "articles": [{
-            "id": "web-test",
-            "url": "https://example.org/news/test",
-            "title": "Новость об ИБ",
-            "text": "Полный текст статьи для передачи в Symfony.",
-            "source": "example.org",
-            "published_at": "2026-11-08T10:00:00+03:00",
-        }],
-        "excluded_articles": [],
-        "counts": {"candidates": 1, "accepted": 1, "excluded": 0},
-        "warnings": [],
+    "dataset": "web",
+    "control_time": PAYLOAD["control_time"],
+    "period_start": "2026-11-07T13:01:59+03:00",
+    "timezone": "Europe/Moscow",
+    "description": "Публикации из открытых источников.",
+    "fields": {
+        "id": "ID материала", "title": "заголовок", "text": "текст",
+        "source": "кто опубликовал", "url": "ссылка на публикацию",
+        "published_at": "дата публикации", "missing": "незаполненные поля",
+        "error": "ошибка получения материала",
     },
-    "research": {"search_attempts": [{"candidates": []}]},
-    "future_field": {"preserved": True},
+    "items": [{
+        "id": "web-test",
+        "url": "https://example.org/news/test",
+        "title": "Новость об ИБ",
+        "text": "Полный текст статьи для передачи в Symfony.",
+        "source": "example.org",
+        "published_at": "2026-11-08T10:00:00+03:00",
+        "missing": [],
+        "error": None,
+    }],
 }
 
 
@@ -112,11 +113,11 @@ class SearchCLITest(unittest.TestCase):
         with fake_server() as (url, calls):
             result = self.cli("--url", url, "--output", str(output))
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(json.loads(result.stdout), {"run_id": RESULT["id"], **RESULT["collection"]})
+            self.assertEqual(json.loads(result.stdout), RESULT)
             self.assertIn("Новость об ИБ", result.stdout)
             self.assertNotIn("research", json.loads(result.stdout))
             self.assertNotIn("result", RESULT)
-            self.assertNotIn("draft_markdown", RESULT["research"])
+            self.assertNotIn("collection", json.loads(result.stdout))
             self.assertEqual(calls[0]["body"], PAYLOAD)
             self.assertEqual(calls[0]["authorization"], "Bearer " + TOKEN)
             self.assertEqual(calls[0]["path"], "/v1/collect")
@@ -130,27 +131,26 @@ class SearchCLITest(unittest.TestCase):
         self.assertEqual(self.input.read_bytes(), original)
         self.assertNotIn(TOKEN, result.stdout + result.stderr)
 
-    def test_empty_collection_is_successful_without_a_digest(self):
+    def test_empty_news_is_successful_without_a_digest(self):
         empty = copy.deepcopy(RESULT)
-        empty["collection"]["articles"] = []
-        empty["collection"]["counts"] = {"candidates": 0, "accepted": 0, "excluded": 0}
-        empty["collection"]["warnings"] = ["Подходящие статьи не найдены."]
-        del empty["research"]
+        empty["items"] = []
         with fake_server(body=empty) as (url, calls):
             result = self.cli("--url", url)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(json.loads(result.stdout), {"run_id": empty["id"], **empty["collection"]})
+            self.assertEqual(json.loads(result.stdout), empty)
             self.assertEqual(len(calls), 1)
 
-    def test_missing_article_collection_is_reported(self):
-        invalid = copy.deepcopy(RESULT)
-        invalid["collection"] = {"articles": None}
-        with fake_server(body=invalid) as (url, calls):
-            result = self.cli("--url", url)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("collection.articles", result.stderr)
-            self.assertEqual(result.stdout, "")
-            self.assertEqual(len(calls), 1)
+    def test_wrong_news_format_is_reported(self):
+        invalid_items = {**RESULT, "items": None}
+        invalid_metadata = {**RESULT, "fields": None}
+        old_format = {"id": "1" * 32, "mode": "collection", "status": "completed", "collection": {"articles": []}}
+        for invalid in (invalid_items, invalid_metadata, old_format):
+            with self.subTest(body=invalid), fake_server(body=invalid) as (url, calls):
+                result = self.cli("--url", url)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("news.json", result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(len(calls), 1)
 
     def test_redirect_does_not_forward_bearer(self):
         with fake_server() as (other_url, other_calls):

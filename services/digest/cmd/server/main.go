@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -18,6 +19,9 @@ import (
 	gqlhandler "github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/Knigor/notFive_backend/services/digest/graph"
+	"github.com/Knigor/notFive_backend/services/digest/internal/analysis"
+	"github.com/Knigor/notFive_backend/services/digest/internal/collector"
+	"github.com/Knigor/notFive_backend/services/digest/internal/export"
 	"github.com/Knigor/notFive_backend/services/digest/internal/httpapi"
 	"github.com/Knigor/notFive_backend/services/digest/internal/yandex"
 )
@@ -60,17 +64,62 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	analysisMaxTokens, err := intEnv("YANDEX_ANALYSIS_MAX_OUTPUT_TOKENS", "12000")
+	if err != nil {
+		return err
+	}
+	exportMaxTokens, err := intEnv("YANDEX_EXPORT_MAX_OUTPUT_TOKENS", "8000")
+	if err != nil {
+		return err
+	}
 	domains := strings.Split(env("YANDEX_SEARCH_DOMAINS", "securitylab.ru,xakep.ru,habr.com,ptsecurity.com,kaspersky.ru"), ",")
 	for i := range domains {
 		domains[i] = strings.TrimSpace(domains[i])
 	}
 	model := env("YANDEX_MODEL", "yandexgpt-5.1")
+	analysisModel := env("YANDEX_ANALYSIS_MODEL", "aliceai-llm-flash")
+	exportModel := env("YANDEX_EXPORT_MODEL", analysisModel)
 	baseURL := env("YANDEX_BASE_URL", yandex.DefaultBaseURL)
-	client, err := yandex.New(yandex.Config{APIKey: os.Getenv("YANDEX_API_KEY"), FolderID: os.Getenv("YANDEX_FOLDER_ID"), Model: model, BaseURL: baseURL, Domains: domains, MaxOutputTokens: maxTokens, Timeout: timeout})
+	apiKey, folderID := os.Getenv("YANDEX_API_KEY"), os.Getenv("YANDEX_FOLDER_ID")
+	client, err := yandex.New(yandex.Config{APIKey: apiKey, FolderID: folderID, Model: model, BaseURL: baseURL, Domains: domains, MaxOutputTokens: maxTokens, Timeout: timeout})
 	if err != nil {
 		return err
 	}
-	handler, err := httpapi.New(httpapi.Config{Token: os.Getenv("DIGEST_SERVICE_TOKEN"), DataDir: env("DATA_DIR", "./data"), Timeout: timeout, MaxConcurrent: concurrent, SearchDomains: domains, ProviderSettings: map[string]any{"model": "gpt://" + os.Getenv("YANDEX_FOLDER_ID") + "/" + model, "temperature": 0.1, "max_output_tokens": maxTokens, "allowed_domains": domains, "search_context_size": yandex.SearchContextSize, "region": "213", "timeout": timeout.String(), "store": false, "api_base_url": baseURL, "service_version": "6", "max_search_attempts": 2, "max_discovery_sources": 5}}, client)
+	analysisClient, err := yandex.NewAnalysis(yandex.Config{APIKey: apiKey, FolderID: folderID, Model: analysisModel, BaseURL: baseURL, MaxOutputTokens: analysisMaxTokens, Timeout: timeout})
+	if err != nil {
+		return err
+	}
+	exportClient, err := yandex.NewExport(yandex.Config{APIKey: apiKey, FolderID: folderID, Model: exportModel, BaseURL: baseURL, MaxOutputTokens: exportMaxTokens, Timeout: timeout})
+	if err != nil {
+		return err
+	}
+	handler, err := httpapi.New(httpapi.Config{
+		Token: os.Getenv("DIGEST_SERVICE_TOKEN"), DataDir: env("DATA_DIR", "./data"),
+		Timeout: timeout, MaxConcurrent: concurrent, SearchDomains: domains,
+		SearchProviderFactory: func(selectedDomains []string) (collector.Provider, error) {
+			return yandex.New(yandex.Config{APIKey: apiKey, FolderID: folderID, Model: model, BaseURL: baseURL, Domains: slices.Clone(selectedDomains), MaxOutputTokens: maxTokens, Timeout: timeout})
+		},
+		ProviderSettings: map[string]any{
+			"model": "gpt://" + folderID + "/" + model, "temperature": 0.1, "max_output_tokens": maxTokens,
+			"allowed_domains": domains, "search_context_size": yandex.SearchContextSize, "region": "213",
+			"timeout": timeout.String(), "store": false, "api_base_url": baseURL, "service_version": "12",
+			"max_search_attempts": 2, "max_discovery_sources": 5,
+		},
+		AnalysisProvider: analysisClient,
+		AnalysisSettings: map[string]any{
+			"model": "gpt://" + folderID + "/" + analysisModel, "temperature": 0.1, "max_output_tokens": analysisMaxTokens,
+			"response_format": "json_schema", "schema_name": analysis.SchemaName, "strict": true,
+			"tools_enabled": false, "timeout": timeout.String(),
+			"store": false, "api_base_url": baseURL, "service_version": "12",
+		},
+		ExportProvider: exportClient,
+		ExportSettings: map[string]any{
+			"model": "gpt://" + folderID + "/" + exportModel, "temperature": 0.1, "max_output_tokens": exportMaxTokens,
+			"response_format": "json_schema", "schema_name": export.SchemaName, "strict": true,
+			"tools_enabled": false, "timeout": timeout.String(),
+			"store": false, "api_base_url": baseURL, "service_version": "12",
+		},
+	}, client)
 	if err != nil {
 		return err
 	}
@@ -79,7 +128,8 @@ func run() error {
 	handler.MountGraphQL(graphql)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	server := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 60 * time.Second, WriteTimeout: timeout + 15*time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024, BaseContext: func(net.Listener) context.Context { return ctx }}
+	// A pipeline request runs three stages; each stage retains its own timeout.
+	server := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 60 * time.Second, WriteTimeout: 3*timeout + 15*time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024, BaseContext: func(net.Listener) context.Context { return ctx }}
 	finished := make(chan error, 1)
 	go func() { finished <- server.ListenAndServe() }()
 	slog.Info("article collector listening", "address", addr)
