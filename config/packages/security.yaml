@@ -1,0 +1,14 @@
+security:
+    password_hashers:
+        App\Security\AdminUser: 'auto'
+
+    providers:
+        admin_users:
+            id: App\Security\AdminUserProvider
+
+    firewalls:
+        graphql:
+            pattern: ^/api/graphql$
+            stateless: true
+            provider: admin_users
+            jwt: ~

@@ -3,6 +3,9 @@ name: notfive-dev
 services:
   app:
     image: notfive:local
+    env_file:
+      - path: .env.local
+        required: false
     build:
       context: .
       target: production
@@ -12,6 +15,7 @@ services:
       APP_ENV: dev
       APP_DEBUG: '1'
       APP_SECRET: ${APP_SECRET:-notfive-local-development-only}
+      JWT_SECRET: ${JWT_SECRET:-notfive-local-jwt-secret-change-in-production-2026}
       APP_CORS_ORIGIN: ${APP_CORS_ORIGIN:-http://localhost:5173}
       DEFAULT_URI: http://localhost:${HTTP_PORT:-8080}
       POSTGRES_HOST: database

@@ -27,11 +27,11 @@ final readonly class ImportRepository
         ]);
     }
 
-    public function createInput(string $runId, string $kind, string $name, string $locator, ?string $sha256, string $status): string
+    public function createInput(string $runId, string $kind, string $name, string $locator, ?string $sha256, string $status, ?string $siteSourceId = null): string
     {
         return (string) $this->connection->fetchOne(<<<'SQL'
-            INSERT INTO run_inputs (id, run_id, kind, name, locator, sha256, status)
-            VALUES (gen_random_uuid(), :run_id, :kind, :name, :locator, :sha256, :status)
+            INSERT INTO run_inputs (id, run_id, kind, name, locator, sha256, status, site_source_id)
+            VALUES (gen_random_uuid(), :run_id, :kind, :name, :locator, :sha256, :status, :site_source_id)
             RETURNING id
             SQL, [
             'run_id' => $runId,
@@ -40,6 +40,7 @@ final readonly class ImportRepository
             'locator' => $locator,
             'sha256' => $sha256,
             'status' => $status,
+            'site_source_id' => $siteSourceId,
         ]);
     }
 

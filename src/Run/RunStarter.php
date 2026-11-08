@@ -8,6 +8,8 @@ use App\Dataset\DatasetFileReader;
 use App\Dataset\DatasetImporter;
 use App\Dataset\DatasetMaterial;
 use App\Import\ImportRepository;
+use App\SiteSource\SiteSource;
+use App\SiteSource\SiteSourceSelector;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 final readonly class RunStarter
@@ -16,19 +18,21 @@ final readonly class RunStarter
         private DatasetImporter $importer,
         private ImportRepository $repository,
         private GoRunDispatcher $dispatcher,
+        private SiteSourceSelector $siteSourceSelector,
     ) {
     }
 
-    /** @param list<string> $sites
+    /** @param list<string> $sourceIds
      * @return array{runId: string, imported: int, rejected: int, siteCount: int, inputKind: string, dispatchStatus: string, status: string}
      */
-    public function start(?UploadedFile $file, array $sites, ?string $controlTime): array
+    public function start(?UploadedFile $file, array $sourceIds, ?string $controlTime): array
     {
-        if (null !== $file && [] !== $sites) {
+        if (null !== $file && [] !== $sourceIds) {
             throw new \InvalidArgumentException('multiple_inputs');
         }
 
-        $normalizedSites = $this->normalizeSites($sites);
+        $sources = $this->siteSourceSelector->select($sourceIds);
+        $normalizedSites = array_map(static fn (SiteSource $source): string => $source->rootUrl(), $sources);
 
         if (null === $file && null === $controlTime) {
             throw new \InvalidArgumentException('control_time_required');
@@ -60,8 +64,8 @@ final readonly class RunStarter
 
         $siteInputIds = [];
 
-        foreach ($normalizedSites as $site) {
-            $siteInputIds[$site] = $this->repository->createInput($runId, 'site', substr($site, 8), $site, null, 'pending');
+        foreach ($sources as $source) {
+            $siteInputIds[$source->rootUrl()] = $this->repository->createInput($runId, 'site', $source->name, $source->taskUrl, null, 'pending', $source->id);
         }
 
         $payload = [
@@ -154,37 +158,5 @@ final readonly class RunStarter
         }
 
         return null;
-    }
-
-    /** @param list<string> $sites
-     * @return list<string>
-     */
-    private function normalizeSites(array $sites): array
-    {
-        if (count($sites) > 5) {
-            throw new \InvalidArgumentException('invalid_sites');
-        }
-
-        $result = [];
-        $seen = [];
-
-        foreach ($sites as $site) {
-            $parts = parse_url($site);
-
-            if (!is_array($parts) || 'https' !== strtolower($parts['scheme'] ?? '') || !isset($parts['host']) || isset($parts['user']) || isset($parts['pass']) || isset($parts['port']) || isset($parts['query']) || isset($parts['fragment']) || !in_array($parts['path'] ?? '', ['', '/'], true)) {
-                throw new \InvalidArgumentException('invalid_sites');
-            }
-
-            $host = strtolower($parts['host']);
-
-            if (false === filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) || !str_contains($host, '.') || isset($seen[$host])) {
-                throw new \InvalidArgumentException('invalid_sites');
-            }
-
-            $seen[$host] = true;
-            $result[] = 'https://'.$host;
-        }
-
-        return $result;
     }
 }

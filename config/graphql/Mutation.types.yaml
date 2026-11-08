@@ -2,6 +2,12 @@ Mutation:
     type: object
     config:
         fields:
+            login:
+                type: AdminLoginPayload!
+                args:
+                    input: AdminLoginInput!
+                resolve: '@=mutation("App\\GraphQL\\Mutation\\AdminLoginMutation::login", args["input"])'
+                complexity: '@=childrenComplexity + 1'
             startRun:
                 type: RunStartPayload!
                 args:
@@ -9,14 +15,32 @@ Mutation:
                 resolve: '@=mutation("App\\GraphQL\\Mutation\\StartRunMutation::startRun", args["input"])'
                 complexity: '@=childrenComplexity + 1'
 
+AdminLoginInput:
+    type: input-object
+    config:
+        fields:
+            username:
+                type: String!
+            password:
+                type: String!
+
+AdminLoginPayload:
+    type: object
+    config:
+        fields:
+            token:
+                type: String!
+            expiresIn:
+                type: Int!
+
 RunStartInput:
     type: input-object
     config:
         fields:
             file:
                 type: Upload
-            sites:
-                type: '[String!]'
+            sourceIds:
+                type: '[ID!]'
             controlTime:
                 type: String
 
