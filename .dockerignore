@@ -13,6 +13,8 @@
 !migrations/**
 !templates/
 !templates/**
+!translations/
+!translations/**
 !composer.json
 !composer.lock
 !schema.graphql

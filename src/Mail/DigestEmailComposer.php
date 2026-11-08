@@ -12,12 +12,12 @@ final readonly class DigestEmailComposer
     {
     }
 
-    public function compose(string $subject, string $digest): DigestEmailPreview
+    public function compose(string $subject, string $digest, string $locale = 'ru'): DigestEmailPreview
     {
         return new DigestEmailPreview(
             $subject,
             $digest,
-            $this->twig->render('mail/digest.html.twig', ['subject' => $subject, 'digest' => $digest]),
+            $this->twig->render('mail/digest.html.twig', ['subject' => $subject, 'digest' => $digest, 'locale' => $locale]),
         );
     }
 }

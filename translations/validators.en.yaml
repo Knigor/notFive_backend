@@ -1,0 +1,10 @@
+digest_email:
+    subject:
+        required: Enter an email subject.
+        too_long: The email subject is too long.
+    digest:
+        required: Enter the digest text.
+        too_long: The digest text is too long.
+    recipient:
+        required: Enter a recipient address.
+        invalid: Enter a valid email address.

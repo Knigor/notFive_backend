@@ -1,0 +1,35 @@
+telegram:
+    profile:
+        description: "🌿 notFive — cybersecurity news without the noise.\n\nWe gather important security stories, check the sources and present the essentials clearly. The first edition is on its way.\n\nTap Start to open the menu and choose a language."
+        short_description: "🌿 Cybersecurity news, concise and backed by sources."
+    home:
+        active: "🔔 Subscription is on."
+        inactive: "🔕 Subscription is off."
+        body: "🌿 notFive · cybersecurity digest\n\nThe security news that matters, clear and concise.\n🗞️ The latest edition will appear here when it is ready.\n\n%subscription%\n\nChoose a section ↓"
+    settings:
+        active: active
+        inactive: off
+        body: "⚙️ Settings\n\n🔔 Subscription: %status%\n🌐 Language: English\n\nChoose a language or return to the menu."
+    no_digest: "🗞️ The edition is being prepared.\n\nThe key security stories and their sources will appear here."
+    no_event: "🔎 This story is unavailable right now.\n\nReturn to the menu and open the edition again."
+    text_shortened: "… A shortened version is shown."
+    event:
+        body: "🔎 %rank%. %title%\n\n%summary%\n\nWhat changed: %consequences%"
+        sources: '↗ Sources:'
+    button:
+        latest: "🗞️ Latest edition"
+        subscribe: "🔔 Get editions"
+        pause: "⏸️ Pause"
+        resume: "🔔 Resume"
+        settings: "⚙️ Settings"
+        language_ru: "🇷🇺 Русский"
+        language_en: "🇬🇧 English"
+        back: "← Back"
+        event: "🔎 Story %rank%"
+        back_to_digest: "← To edition"
+    command:
+        no_digest: No published digest with a Telegram post is available.
+        delivery_result: 'Sent: %sent%; errors: %failed%.'
+digest_email:
+    invalid_content: Check the email content.
+    invalid_request: Check the email details.
