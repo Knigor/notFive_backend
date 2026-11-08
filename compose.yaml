@@ -17,7 +17,7 @@ services:
       APP_SECRET: ${APP_SECRET:-notfive-local-development-only}
       JWT_SECRET: ${JWT_SECRET:-notfive-local-jwt-secret-change-in-production-2026}
       APP_CORS_ORIGIN: ${APP_CORS_ORIGIN:-http://localhost:5173}
-      DEFAULT_URI: http://localhost:${HTTP_PORT:-8080}
+      DEFAULT_URI: ${DEFAULT_URI:-https://api.galaxiit.ru}
       POSTGRES_HOST: database
       POSTGRES_DB: ${POSTGRES_DB:-notfive}
       POSTGRES_USER: ${POSTGRES_USER:-notfive}
