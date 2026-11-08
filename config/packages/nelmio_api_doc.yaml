@@ -1,0 +1,65 @@
+nelmio_api_doc:
+    html_config:
+        assets_mode: offline
+    documentation:
+        info:
+            title: notFive API
+            version: 0.1.0
+            description: HTTP API for the notFive digest. GraphQL types and operations are defined in schema.graphql.
+        paths:
+            /api/graphql:
+                post:
+                    tags: [GraphQL]
+                    summary: Execute a GraphQL operation
+                    description: GraphQL operations share this HTTP endpoint. The current schema exposes Query.ping, which returns 1.
+                    operationId: executeGraphql
+                    requestBody:
+                        required: true
+                        content:
+                            application/json:
+                                schema:
+                                    type: object
+                                    required: [query]
+                                    properties:
+                                        query:
+                                            type: string
+                                            description: GraphQL operation text.
+                                            example: 'query Ping { ping }'
+                                        variables:
+                                            type: object
+                                            description: Values for operation variables, if any.
+                                            additionalProperties: true
+                                        operationName:
+                                            type: string
+                                            description: Operation name when the document contains multiple operations.
+                    responses:
+                        '200':
+                            description: GraphQL result; execution errors are returned in the errors array.
+                            content:
+                                application/json:
+                                    schema:
+                                        type: object
+                                        properties:
+                                            data:
+                                                type: object
+                                                nullable: true
+                                                properties:
+                                                    ping:
+                                                        type: integer
+                                                        description: Result of the current Ping query.
+                                                        example: 1
+                                            errors:
+                                                type: array
+                                                description: Present when GraphQL reports errors.
+                                                items:
+                                                    type: object
+                                                    properties:
+                                                        message:
+                                                            type: string
+                                    example:
+                                        data:
+                                            ping: 1
+    areas:
+        default:
+            path_patterns:
+                - '^/(?:healthz|api/(?:graphql|digest-email/(?:preview|send)))$'

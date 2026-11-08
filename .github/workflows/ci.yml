@@ -53,6 +53,26 @@ jobs:
           docker compose -f compose.prod.yaml exec -T app cmp schema.graphql /tmp/schema.graphql
           sh scripts/smoke.sh
           sh scripts/graphql-smoke.sh
+      - name: Check API documentation
+        run: |
+          docker compose -f compose.prod.yaml exec -T app php bin/console nelmio:apidoc:dump --format=json > /tmp/notfive-api-doc-prod.json
+          docker compose -f compose.prod.yaml exec -T app env APP_ENV=dev APP_DEBUG=1 php bin/console nelmio:apidoc:dump --format=json > /tmp/notfive-api-doc-dev.json
+          python3 - <<'PY'
+          import json
+
+          with open('/tmp/notfive-api-doc-prod.json') as file:
+              production = json.load(file)
+          with open('/tmp/notfive-api-doc-dev.json') as file:
+              development = json.load(file)
+
+          assert set(production['paths']) == {'/healthz', '/api/graphql'}
+          assert set(development['paths']) == {
+              '/healthz', '/api/graphql', '/api/digest-email/preview', '/api/digest-email/send'
+          }
+          assert development['paths']['/api/graphql']['post']['requestBody']['content']['application/json']['schema']['properties']['query']['example'] == 'query Ping { ping }'
+          assert development['paths']['/api/digest-email/send']['post']['requestBody']['content']['application/json']['schema']['required'] == ['subject', 'digest', 'recipient']
+          PY
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8080/api/doc)" = 404
       - name: Container logs
         if: failure()
         run: docker compose -f compose.prod.yaml logs --tail=100
