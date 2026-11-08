@@ -30,6 +30,37 @@ telegram:
     command:
         no_digest: No published digest with a Telegram post is available.
         delivery_result: 'Sent: %sent%; errors: %failed%.'
+email_subscription:
+    accepted: 'If the address is not confirmed yet, we will send a confirmation link. Please check your inbox.'
+    invalid_email: 'Provide a valid email address.'
+    unavailable: 'The confirmation email could not be sent. Please try again later.'
+    confirmation:
+        subject: 'Confirm your notFive subscription'
+        body: "To receive new notFive digests, open the link and confirm your subscription. The link expires in 24 hours.\n\n%url%\n\nIf you did not request a subscription, ignore this email."
+        action: 'Confirm subscription'
+    page:
+        confirm_title: 'Subscribe to notFive'
+        confirm_body: 'Confirm that you want to receive new digests at this email address.'
+        confirm_button: 'Confirm subscription'
+        confirmed_title: 'Subscription confirmed'
+        confirmed_body: 'New editions will arrive in your inbox. You can unsubscribe using the link in any newsletter.'
+        unsubscribe_title: 'Unsubscribe from notFive'
+        unsubscribe_body: 'Click the button to stop receiving new editions.'
+        unsubscribe_button: 'Unsubscribe'
+        unsubscribed_title: 'You have unsubscribed'
+        unsubscribed_body: 'New editions will no longer be sent to this address.'
+        invalid_title: 'Invalid link'
+        invalid_body: 'The link is invalid or has expired. To subscribe, enter your email on the website again.'
+email_newsletter:
+    unsubscribe: 'Unsubscribe from the newsletter'
+digest_publish:
+    invalid_run_id: 'Invalid digest ID.'
+    not_found: 'Digest not found.'
+    not_ready: 'Only a completed digest can be published.'
+    missing_files: 'Publication requires all four generated files and the email subject.'
+    result: 'Digest %run_id% published. Emails sent: %sent%; failed: %failed%; pending: %pending%.'
+digest_query:
+    invalid_date: 'Provide a valid date in YYYY-MM-DD format.'
 digest_email:
     invalid_content: Check the email content.
     invalid_request: Check the email details.

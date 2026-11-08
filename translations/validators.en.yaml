@@ -1,3 +1,7 @@
+email_subscription:
+    email_required: 'Enter an email address.'
+    email_invalid: 'Enter a valid email address.'
+    email_too_long: 'The email address is too long.'
 digest_email:
     subject:
         required: Enter an email subject.

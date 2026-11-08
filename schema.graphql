@@ -1,7 +1,46 @@
 type Query {
   ping: Int!
+  publishedDigestDates: [String!]!
+  digest(date: String!): Digest
   availableSiteSources: [SiteSource!]!
   runStatus(runId: ID!): RunStatus
+}
+
+type Digest {
+  runId: ID!
+  controlTime: String!
+  periodStart: String!
+  timezone: String!
+  language: String!
+  publishedAt: String!
+  totalMaterials: Int!
+  events: [DigestEvent!]!
+  files: DigestFiles
+}
+
+type DigestEvent {
+  id: ID!
+  rank: Int!
+  title: String!
+  summary: String!
+  consequences: String!
+  selectionReason: String!
+  sources: [DigestSource!]!
+}
+
+type DigestSource {
+  id: ID!
+  name: String!
+  url: String
+  publishedAt: String
+}
+
+type DigestFiles {
+  digest: String
+  post: String
+  email: String
+  csv: String
+  emailSubject: String
 }
 
 type SiteSource {
@@ -23,8 +62,24 @@ type RunStatus {
 }
 
 type Mutation {
+  subscribeEmail(email: String!): EmailSubscriptionPayload!
+  publishDigest(runId: ID!): DigestPublicationPayload!
   login(input: AdminLoginInput!): AdminLoginPayload!
   startRun(input: RunStartInput!): RunStartPayload!
+}
+
+type EmailSubscriptionPayload {
+  status: String!
+  message: String!
+}
+
+type DigestPublicationPayload {
+  runId: ID!
+  publishedAt: String!
+  alreadyPublished: Boolean!
+  emailSent: Int!
+  emailFailed: Int!
+  emailPending: Int!
 }
 
 input AdminLoginInput {

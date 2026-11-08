@@ -2,6 +2,18 @@ Mutation:
     type: object
     config:
         fields:
+            subscribeEmail:
+                type: EmailSubscriptionPayload!
+                args:
+                    email: String!
+                resolve: '@=mutation("App\\GraphQL\\Mutation\\EmailSubscriptionMutation::subscribeEmail", args["email"])'
+                complexity: '@=childrenComplexity + 1'
+            publishDigest:
+                type: DigestPublicationPayload!
+                args:
+                    runId: ID!
+                resolve: '@=mutation("App\\GraphQL\\Mutation\\PublishDigestMutation::publishDigest", args["runId"])'
+                complexity: '@=childrenComplexity + 1'
             login:
                 type: AdminLoginPayload!
                 args:
