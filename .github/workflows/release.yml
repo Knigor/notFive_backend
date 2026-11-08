@@ -30,6 +30,16 @@ jobs:
     needs: verify-release
     uses: ./.github/workflows/ci.yml
 
+  digest:
+    needs: verify-release
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/digest.yml
+    with:
+      publish: true
+      release_tag: ${{ github.event.release.tag_name }}
+
   publish:
     needs: checks
     runs-on: ubuntu-latest
@@ -67,10 +77,10 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    needs: publish
+    needs: [publish, digest]
     if: ${{ vars.DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     environment: production
     steps:
       - uses: actions/checkout@v6
@@ -83,35 +93,71 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
-      - name: Deploy exact published image
+      - name: Deploy exact published Symfony and Go images
+        shell: bash
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+          APP_SECRET: ${{ secrets.APP_SECRET }}
           MAILER_DSN: ${{ secrets.MAILER_DSN }}
           MAIL_FROM_ADDRESS: ${{ secrets.MAIL_FROM_ADDRESS }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           ADMIN_BOOTSTRAP_USERNAME: ${{ secrets.ADMIN_BOOTSTRAP_USERNAME }}
           ADMIN_BOOTSTRAP_PASSWORD: ${{ secrets.ADMIN_BOOTSTRAP_PASSWORD }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          DIGEST_SERVICE_TOKEN: ${{ secrets.DIGEST_SERVICE_TOKEN }}
+          YANDEX_API_KEY: ${{ secrets.YANDEX_API_KEY }}
+          POSTGRES_DB: ${{ vars.POSTGRES_DB || 'notfive' }}
+          POSTGRES_USER: ${{ vars.POSTGRES_USER || 'notfive' }}
+          APP_CORS_ORIGIN: ${{ vars.APP_CORS_ORIGIN }}
+          DEFAULT_URI: ${{ vars.DEFAULT_URI }}
+          HTTP_PORT: ${{ vars.HTTP_PORT || '8080' }}
+          GO_SERVICE_URL: ${{ vars.GO_SERVICE_URL || 'http://digest:8081' }}
+          YANDEX_FOLDER_ID: ${{ vars.YANDEX_FOLDER_ID }}
+          YANDEX_MODEL: ${{ vars.YANDEX_MODEL || 'yandexgpt-5.1' }}
+          YANDEX_ANALYSIS_MODEL: ${{ vars.YANDEX_ANALYSIS_MODEL || 'aliceai-llm-flash' }}
+          YANDEX_EXPORT_MODEL: ${{ vars.YANDEX_EXPORT_MODEL || 'aliceai-llm-flash' }}
+          YANDEX_ANALYSIS_MAX_OUTPUT_TOKENS: ${{ vars.YANDEX_ANALYSIS_MAX_OUTPUT_TOKENS || '12000' }}
+          YANDEX_EXPORT_MAX_OUTPUT_TOKENS: ${{ vars.YANDEX_EXPORT_MAX_OUTPUT_TOKENS || '8000' }}
+          YANDEX_BASE_URL: ${{ vars.YANDEX_BASE_URL || 'https://ai.api.cloud.yandex.net/v1' }}
+          YANDEX_SEARCH_DOMAINS: ${{ vars.YANDEX_SEARCH_DOMAINS || 'securitylab.ru,xakep.ru,habr.com,ptsecurity.com,kaspersky.ru' }}
+          REQUEST_TIMEOUT: ${{ vars.REQUEST_TIMEOUT || '180s' }}
+          MAX_CONCURRENT: ${{ vars.MAX_CONCURRENT || '2' }}
+          MAX_OUTPUT_TOKENS: ${{ vars.MAX_OUTPUT_TOKENS || '8000' }}
+          DIGEST_HTTP_PORT: ${{ vars.DIGEST_HTTP_PORT || '8081' }}
           IMAGE: ${{ needs.publish.outputs.image }}
+          DIGEST_IMAGE: ${{ needs.digest.outputs.image }}
         run: |
+          set -euo pipefail
           [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
           [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
           [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]
-          [[ -n "$MAILER_DSN" ]]
-          [[ -n "$MAIL_FROM_ADDRESS" ]]
-          [[ -n "$TELEGRAM_BOT_TOKEN" ]]
-          [[ "$JWT_SECRET" =~ ^[a-f0-9]{64}$ ]]
-          [[ "$ADMIN_BOOTSTRAP_USERNAME" =~ ^[a-z][a-z0-9_]{2,63}$ ]]
-          [[ "$ADMIN_BOOTSTRAP_PASSWORD" =~ ^[A-Za-z0-9_@.:-]{12,128}$ ]]
           [[ "$IMAGE" =~ ^[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
+          [[ "$DIGEST_IMAGE" =~ ^[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
           ssh_opts=(-p "$DEPLOY_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)
-          tar -czf - compose.prod.yaml compose.digest.yaml deploy/deploy.sh deploy/update-mailer-env.sh deploy/update-telegram-env.sh deploy/update-jwt-env.sh deploy/update-admin-env.sh | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'tar -xzf - -C /opt/notfive'
-          printf '%s\n' "$TELEGRAM_BOT_TOKEN" | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'sh /opt/notfive/deploy/update-telegram-env.sh'
-          printf '%s\n' "$JWT_SECRET" | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'sh /opt/notfive/deploy/update-jwt-env.sh'
-          printf '%s\n%s\n' "$ADMIN_BOOTSTRAP_USERNAME" "$ADMIN_BOOTSTRAP_PASSWORD" | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'sh /opt/notfive/deploy/update-admin-env.sh'
-          printf '%s\n%s\n' "$MAILER_DSN" "$MAIL_FROM_ADDRESS" | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sh /opt/notfive/deploy/deploy.sh '$IMAGE' --mailer-from-stdin"
+          tar -czf - compose.prod.yaml compose.digest.yaml services/digest/compose.prod.yaml deploy/deploy.sh deploy/update-production-env.py deploy/update-mailer-env.sh deploy/update-telegram-env.sh deploy/update-jwt-env.sh deploy/update-admin-env.sh | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'tar -xzf - -C /opt/notfive'
+          python3 - <<'PY' | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sh /opt/notfive/deploy/deploy.sh '$IMAGE' --config-from-stdin '$DIGEST_IMAGE'"
+          import json
+          import os
+          import sys
+
+          keys = '''
+          APP_SECRET JWT_SECRET ADMIN_BOOTSTRAP_USERNAME ADMIN_BOOTSTRAP_PASSWORD
+          POSTGRES_PASSWORD POSTGRES_DB POSTGRES_USER APP_CORS_ORIGIN DEFAULT_URI
+          HTTP_PORT MAILER_DSN MAIL_FROM_ADDRESS TELEGRAM_BOT_TOKEN
+          DIGEST_SERVICE_TOKEN GO_SERVICE_URL YANDEX_API_KEY YANDEX_FOLDER_ID
+          YANDEX_MODEL YANDEX_ANALYSIS_MODEL YANDEX_EXPORT_MODEL
+          YANDEX_ANALYSIS_MAX_OUTPUT_TOKENS YANDEX_EXPORT_MAX_OUTPUT_TOKENS
+          YANDEX_BASE_URL YANDEX_SEARCH_DOMAINS REQUEST_TIMEOUT MAX_CONCURRENT
+          MAX_OUTPUT_TOKENS DIGEST_HTTP_PORT
+          '''.split()
+          missing = [key for key in keys if not os.environ.get(key)]
+          if missing:
+              sys.exit('Missing production configuration: ' + ', '.join(missing))
+          json.dump({key: os.environ[key] for key in keys}, sys.stdout)
+          PY
       - name: Remove SSH key
         if: always()
         run: rm -f ~/.ssh/id_ed25519

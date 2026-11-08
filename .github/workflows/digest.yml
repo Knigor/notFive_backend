@@ -10,15 +10,26 @@ on:
     paths:
       - 'services/digest/**'
       - '.github/workflows/digest.yml'
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      publish:
+        description: Publish the checked Go image for a stable release
+        type: boolean
+        default: false
+      release_tag:
+        description: Stable release tag on master
+        type: string
+        default: ''
+    outputs:
+      image:
+        description: Published Go image pinned to its digest
+        value: ${{ jobs.publish.outputs.image }}
 
 permissions:
   contents: read
 
 jobs:
   check:
-    if: ${{ github.event_name != 'release' || !github.event.release.prerelease }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -44,12 +55,14 @@ jobs:
 
   publish:
     needs: check
-    if: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
+    if: ${{ inputs.publish }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
       packages: write
+    outputs:
+      image: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -57,7 +70,7 @@ jobs:
       - name: Verify release and resolve image name
         id: image
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           git merge-base --is-ancestor HEAD origin/master
@@ -70,13 +83,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish service image
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: services/digest
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.image.outputs.name }}:${{ github.event.release.tag_name }}
+          tags: ${{ steps.image.outputs.name }}:${{ inputs.release_tag }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ github.event.release.tag_name }}
+            org.opencontainers.image.version=${{ inputs.release_tag }}
+          cache-from: type=gha,scope=digest
+          cache-to: type=gha,mode=max,scope=digest

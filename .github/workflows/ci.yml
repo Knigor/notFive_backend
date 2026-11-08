@@ -24,6 +24,10 @@ jobs:
       DEFAULT_URI: http://localhost:8080
     steps:
       - uses: actions/checkout@v6
+      - name: Check deployment configuration and rollback
+        run: |
+          sh -n deploy/deploy.sh
+          python3 -B scripts/deploy-config-smoke.py
       - uses: docker/setup-buildx-action@v4
       - name: Build production image
         uses: docker/build-push-action@v7

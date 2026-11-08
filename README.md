@@ -149,10 +149,11 @@ docker compose exec -T app php bin/console digest:publish RUN_UUID
 
 - CI собирает production-образ, проверяет Composer, Symfony, Twig, HTTP-ответы и соединение с настоящей PostgreSQL.
 - Release workflow принимает стабильные версии `vX.Y.Z`, проверяет, что коммит входит в `master`, и повторяет CI. Черновик, prerelease и просто push тега не запускают публикацию.
-- Публикуется `ghcr.io/knigor/notfive_backend:vX.Y.Z` для `linux/amd64` и `linux/arm64`. Имя автоматически получается из `github.repository` в нижнем регистре. Теги версий не переиспользовать.
-- Публикация использует встроенный `GITHUB_TOKEN` с `packages: write` только у задания `publish`. Отдельный токен реестра в GitHub Secrets не нужен. Образ связан с репозиторием через OCI label.
-- Сервер получает образ по digest `@sha256:…`, то есть именно результат этой сборки. Исходники и Composer на сервере не нужны.
-- После включения `DEPLOY_ENABLED=true` выполняется SSH-деплой. До этого релиз только публикует образ.
+- Публикуются `ghcr.io/knigor/notfive_backend:vX.Y.Z` и `ghcr.io/knigor/notfive-digest:vX.Y.Z` для `linux/amd64` и `linux/arm64`. Имена автоматически приводятся к нижнему регистру. Теги версий не переиспользовать.
+- Release вызывает проверку и публикацию Go через reusable workflow `digest.yml`. Отдельный запуск Digest service на событие release не нужен: общий deploy ждёт готовности обоих образов.
+- Публикация использует встроенный `GITHUB_TOKEN` с `packages: write` только у заданий публикации. Отдельный токен реестра в GitHub Secrets не нужен. Образы связаны с репозиторием через OCI label.
+- Сервер получает оба образа по digest `@sha256:…`, то есть именно результаты этой сборки. Исходники и Composer на сервере не нужны.
+- После включения `DEPLOY_ENABLED=true` выполняется SSH-деплой: конфигурация из Environment `production`, Go и его сеть, Symfony, миграции, обработчик запусков и Telegram. До этого релиз только публикует образы.
 
 Репозиторий: `Knigor/notFive_backend`, ветка `master`. Перед выпуском загрузить изменения workflow и приложения на GitHub; в коммит должны попасть `composer.lock`, `symfony.lock` и `.github/workflows`. Секреты из `.env.production` и локальные `vendor/var` исключены через `.gitignore`.
 
@@ -179,6 +180,38 @@ docker compose exec -T app php bin/console digest:publish RUN_UUID
 | `DEPLOY_PORT` | SSH-порт; по умолчанию 22 |
 | `SSH_PRIVATE_KEY` | Приватный ключ для деплоя; публичный добавить в `authorized_keys` сервера |
 | `SSH_KNOWN_HOSTS` | Проверенная запись ключа сервера в формате known_hosts |
+| `APP_SECRET` | Секрет Symfony; сохранить существующее production-значение |
+| `JWT_SECRET` | Отдельный секрет JWT, 64 шестнадцатеричных символа в нижнем регистре |
+| `ADMIN_BOOTSTRAP_USERNAME` | Логин администратора: латинская буква, затем буквы, цифры или `_`; всего 3–64 символа |
+| `ADMIN_BOOTSTRAP_PASSWORD` | Пароль администратора, 12–128 символов из `A-Za-z0-9_@.:-` |
+| `POSTGRES_PASSWORD` | Текущий пароль роли PostgreSQL; переносить без изменения |
+| `MAILER_DSN` | Production-транспорт SMTP; локальный Mailpit и отключённый транспорт не подходят |
+| `MAIL_FROM_ADDRESS` | Разрешённый SMTP-провайдером адрес отправителя |
+| `TELEGRAM_BOT_TOKEN` | Действующий токен BotFather |
+| `DIGEST_SERVICE_TOKEN` | Общий серверный токен Symfony и Go, минимум 32 символа |
+| `YANDEX_API_KEY` | Ключ Yandex AI Studio для поиска и генерации |
+
+В том же Environment `production` добавить variables:
+
+| Имя | Значение или default workflow |
+| --- | --- |
+| `DEFAULT_URI` | Обязательно: публичный адрес backend для ссылок в письмах |
+| `APP_CORS_ORIGIN` | Обязательно: разрешённый origin frontend |
+| `YANDEX_FOLDER_ID` | Обязательно: каталог Yandex Cloud |
+| `POSTGRES_DB`, `POSTGRES_USER` | Текущие production-значения; default обоих — `notfive` |
+| `HTTP_PORT` | Порт Symfony на loopback хоста; default `8080`, должен совпадать с Nginx |
+| `GO_SERVICE_URL` | `http://digest:8081`; Go доступен Symfony по Docker-сети |
+| `DIGEST_HTTP_PORT` | Порт Go на loopback хоста; default `8081` |
+| `YANDEX_MODEL` | `yandexgpt-5.1` |
+| `YANDEX_ANALYSIS_MODEL`, `YANDEX_EXPORT_MODEL` | `aliceai-llm-flash` |
+| `YANDEX_ANALYSIS_MAX_OUTPUT_TOKENS` | `12000` |
+| `YANDEX_EXPORT_MAX_OUTPUT_TOKENS`, `MAX_OUTPUT_TOKENS` | `8000` |
+| `YANDEX_BASE_URL` | `https://ai.api.cloud.yandex.net/v1` |
+| `YANDEX_SEARCH_DOMAINS` | `securitylab.ru,xakep.ru,habr.com,ptsecurity.com,kaspersky.ru` |
+| `REQUEST_TIMEOUT` | `180s` |
+| `MAX_CONCURRENT` | `2` |
+
+`DEPLOY_ENABLED` остаётся именно **Repository variable**, потому что условие задания проверяется до загрузки Environment. `APP_IMAGE` и `DIGEST_IMAGE` вручную не задаются: deploy получает их из результатов публикации. Все значения конфигурации передаются на VPS JSON через SSH stdin, проверяются и сохраняются в `/opt/notfive/.env.production` с правами `0600`; содержимое секретов не попадает в аргументы команд. Этот env используется обоими Compose-проектами. При переносе существующей конфигурации сначала сохранить текущие production-пароли, а затем включать новый релиз.
 
 Fingerprint SSH-ключа сервера сверить через консоль хостинга или другое доверенное соединение. При нестандартном порте known_hosts использует запись `[host]:port`. Проверка SSH-ключа в workflow включена.
 
@@ -186,7 +219,7 @@ Fingerprint SSH-ключа сервера сверить через консол
 
 ## Подготовка сервера
 
-Требуется VPS/виртуальная машина с правами установки Docker. Одного SSH на shared-хостинге может быть недостаточно. Понадобятся Docker Engine, Compose plugin, Nginx и `flock` (пакет util-linux). Для Ubuntu: [официальная инструкция Docker](https://docs.docker.com/engine/install/ubuntu/); для другой ОС выбрать её инструкцию.
+Требуется VPS/виртуальная машина с правами установки Docker. Одного SSH на shared-хостинге может быть недостаточно. Понадобятся Docker Engine, Compose plugin, Nginx, Python 3 и `flock` (пакет util-linux). Для Ubuntu: [официальная инструкция Docker](https://docs.docker.com/engine/install/ubuntu/); для другой ОС выбрать её инструкцию.
 
 Запросы идут так:
 

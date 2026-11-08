@@ -28,7 +28,7 @@ notFive — прототип новостного дайджеста по киб
 
 ## Запуск и проверка Go
 
-- Для локальной связи Symfony и Go используется сеть `notfive-digest` и `compose.digest.yaml`; адрес Go внутри сети — `http://digest:8081`. На VPS Go развёртывается отдельно. `deploy/deploy.sh` подключает Symfony к сети, если в `.env.production` указан `GO_SERVICE_URL=http://digest:8081`, а сеть уже создана Compose сборщика. `DIGEST_SERVICE_TOKEN` должен совпадать у сервисов; ключи Yandex и `YANDEX_SEARCH_DOMAINS` принадлежат окружению Go.
+- Для связи Symfony и Go используется сеть `notfive-digest` и `compose.digest.yaml`; адрес Go внутри сети — `http://digest:8081`. Release ждёт публикации обоих образов и передаёт их по digest в единый `deploy/deploy.sh`. Go запускается отдельным Compose-проектом до Symfony, Telegram и `digest_worker`; сеть создаёт Compose сборщика. Все production-настройки берутся из GitHub Environment `production` и передаются JSON через SSH stdin; `DEPLOY_ENABLED` остаётся Repository variable. `DIGEST_SERVICE_TOKEN` должен совпадать у сервисов; ключи Yandex принадлежат только окружению Go. Не менять пароль существующей PostgreSQL только правкой Compose. Скрипт откатывает окружение и контейнеры при ошибке, но не применённые миграции.
 - После изменения Go запускать из `services/digest` последовательно `python3 -B tests/run.py` и собирать его Docker-образ. Для изменений границы сервисов проверять реальные HTTP-запросы к Symfony с файлом, сайтами и без обоих входов; подставной поисковый провайдер доказывает передачу данных, но не качество реального поиска Yandex. Продакшен считать проверенным только после отдельного прогона на развёрнутых образах и актуальных переменных окружения.
 
 ## Технические правила GraphQL
