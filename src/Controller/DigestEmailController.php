@@ -7,6 +7,7 @@ namespace App\Controller;
 use App\Mail\DigestEmailComposer;
 use App\Mail\DigestEmailRequest;
 use App\Mail\DigestEmailSender;
+use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
@@ -25,6 +26,58 @@ final readonly class DigestEmailController
     }
 
     #[Route('/api/digest-email/preview', name: 'digest_email_preview', methods: ['POST'], env: 'dev')]
+    #[OA\Post(
+        summary: 'Preview a digest email (development only)',
+        description: 'Renders the email without sending it. Available only in the dev environment.',
+        tags: ['Development mail'],
+        parameters: [new OA\Parameter(name: 'Accept-Language', in: 'header', description: 'Response language: ru or en; defaults to ru.', schema: new OA\Schema(type: 'string', enum: ['ru', 'en']))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['subject', 'digest'],
+                properties: [
+                    new OA\Property(property: 'subject', type: 'string', maxLength: 200, example: 'Daily digest'),
+                    new OA\Property(property: 'digest', type: 'string', maxLength: 20000, example: 'One verified event.'),
+                    new OA\Property(property: 'recipient', type: 'string', format: 'email', description: 'Optional for preview.', example: 'reader@example.invalid'),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Rendered email.',
+                content: new OA\JsonContent(
+                    required: ['subject', 'text', 'html'],
+                    properties: [
+                        new OA\Property(property: 'subject', type: 'string'),
+                        new OA\Property(property: 'text', type: 'string'),
+                        new OA\Property(property: 'html', type: 'string'),
+                    ],
+                ),
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Invalid content.',
+                content: new OA\JsonContent(
+                    required: ['error', 'violations'],
+                    properties: [
+                        new OA\Property(property: 'error', type: 'string'),
+                        new OA\Property(
+                            property: 'violations',
+                            type: 'array',
+                            items: new OA\Items(
+                                required: ['field', 'message'],
+                                properties: [
+                                    new OA\Property(property: 'field', type: 'string'),
+                                    new OA\Property(property: 'message', type: 'string'),
+                                ],
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+        ],
+    )]
     public function preview(Request $request): JsonResponse
     {
         $draft = $this->readRequest($request);
@@ -45,6 +98,54 @@ final readonly class DigestEmailController
     }
 
     #[Route('/api/digest-email/send', name: 'digest_email_send', methods: ['POST'], env: 'dev')]
+    #[OA\Post(
+        summary: 'Send a digest email (development only)',
+        description: 'Sends one email using the configured mail transport. Available only in the dev environment.',
+        tags: ['Development mail'],
+        parameters: [new OA\Parameter(name: 'Accept-Language', in: 'header', description: 'Response language: ru or en; defaults to ru.', schema: new OA\Schema(type: 'string', enum: ['ru', 'en']))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['subject', 'digest', 'recipient'],
+                properties: [
+                    new OA\Property(property: 'subject', type: 'string', maxLength: 200, example: 'Daily digest'),
+                    new OA\Property(property: 'digest', type: 'string', maxLength: 20000, example: 'One verified event.'),
+                    new OA\Property(property: 'recipient', type: 'string', format: 'email', example: 'reader@example.invalid'),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Email accepted by the configured mail transport.',
+                content: new OA\JsonContent(
+                    required: ['status'],
+                    properties: [new OA\Property(property: 'status', type: 'string', example: 'sent')],
+                ),
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Invalid request.',
+                content: new OA\JsonContent(
+                    required: ['error', 'violations'],
+                    properties: [
+                        new OA\Property(property: 'error', type: 'string'),
+                        new OA\Property(
+                            property: 'violations',
+                            type: 'array',
+                            items: new OA\Items(
+                                required: ['field', 'message'],
+                                properties: [
+                                    new OA\Property(property: 'field', type: 'string'),
+                                    new OA\Property(property: 'message', type: 'string'),
+                                ],
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+        ],
+    )]
     public function send(Request $request): JsonResponse
     {
         $draft = $this->readRequest($request);
