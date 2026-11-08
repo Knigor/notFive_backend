@@ -1,3 +1,7 @@
+email_subscription:
+    email_required: 'Укажите адрес электронной почты.'
+    email_invalid: 'Укажите корректный адрес электронной почты.'
+    email_too_long: 'Адрес электронной почты слишком длинный.'
 digest_email:
     subject:
         required: Укажите тему письма.

@@ -1,0 +1,25 @@
+EmailSubscriptionPayload:
+    type: object
+    config:
+        fields:
+            status:
+                type: String!
+            message:
+                type: String!
+
+DigestPublicationPayload:
+    type: object
+    config:
+        fields:
+            runId:
+                type: ID!
+            publishedAt:
+                type: String!
+            alreadyPublished:
+                type: Boolean!
+            emailSent:
+                type: Int!
+            emailFailed:
+                type: Int!
+            emailPending:
+                type: Int!

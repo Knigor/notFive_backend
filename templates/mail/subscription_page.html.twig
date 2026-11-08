@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="{{ locale }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{{ title }}</title>
+    <style>
+        body { margin: 0; padding: 32px 20px; background: #f5f5f5; color: #171717; font-family: system-ui, sans-serif; line-height: 1.6; }
+        main { max-width: 640px; margin: 10vh auto; padding: 32px; background: #fff; border: 1px solid #ddd; border-radius: 16px; }
+        h1 { font-size: 1.8rem; line-height: 1.25; overflow-wrap: anywhere; }
+        p { white-space: pre-wrap; }
+        button { padding: 12px 20px; background: #171717; color: #fff; border: 0; border-radius: 8px; font: inherit; cursor: pointer; }
+        button:focus-visible { outline: 3px solid #2563eb; outline-offset: 4px; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>{{ title }}</h1>
+    <p>{{ body }}</p>
+    {% if action_url %}
+        <form method="post" action="{{ action_url }}">
+            <button type="submit">{{ button }}</button>
+        </form>
+    {% endif %}
+</main>
+</body>
+</html>

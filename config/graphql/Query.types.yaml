@@ -5,6 +5,16 @@ Query:
             ping:
                 type: Int!
                 resolve: '@=query("App\\GraphQL\\Query\\PingQuery::ping")'
+            publishedDigestDates:
+                type: '[String!]!'
+                resolve: '@=query("App\\GraphQL\\Query\\DigestQuery::publishedDigestDates")'
+                complexity: '@=1'
+            digest:
+                type: Digest
+                args:
+                    date: String!
+                resolve: '@=query("App\\GraphQL\\Query\\DigestQuery::digest", args["date"])'
+                complexity: '@=childrenComplexity + 1'
             availableSiteSources:
                 type: '[SiteSource!]!'
                 resolve: '@=query("App\\GraphQL\\Query\\AvailableSiteSourcesQuery::availableSiteSources")'

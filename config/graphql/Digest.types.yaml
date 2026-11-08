@@ -1,0 +1,72 @@
+Digest:
+    type: object
+    config:
+        fields:
+            runId:
+                type: ID!
+            controlTime:
+                type: String!
+            periodStart:
+                type: String!
+            timezone:
+                type: String!
+            language:
+                type: String!
+            publishedAt:
+                type: String!
+            totalMaterials:
+                type: Int!
+            events:
+                type: '[DigestEvent!]!'
+                complexity: '@=childrenComplexity * 5 + 1'
+            files:
+                type: DigestFiles
+                complexity: '@=childrenComplexity + 1'
+
+DigestEvent:
+    type: object
+    config:
+        fields:
+            id:
+                type: ID!
+            rank:
+                type: Int!
+            title:
+                type: String!
+            summary:
+                type: String!
+            consequences:
+                type: String!
+            selectionReason:
+                type: String!
+            sources:
+                type: '[DigestSource!]!'
+                complexity: '@=childrenComplexity * 30 + 1'
+
+DigestSource:
+    type: object
+    config:
+        fields:
+            id:
+                type: ID!
+            name:
+                type: String!
+            url:
+                type: String
+            publishedAt:
+                type: String
+
+DigestFiles:
+    type: object
+    config:
+        fields:
+            digest:
+                type: String
+            post:
+                type: String
+            email:
+                type: String
+            csv:
+                type: String
+            emailSubject:
+                type: String
