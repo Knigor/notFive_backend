@@ -31,7 +31,8 @@ COPY src ./src
 COPY migrations ./migrations
 COPY schema.graphql ./schema.graphql
 COPY templates ./templates
-    COPY translations ./translations
+COPY translations ./translations
+COPY fixtures ./fixtures
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/app-entrypoint
 COPY --chmod=755 docker/migrate.sh /usr/local/bin/app-migrate
 RUN mkdir -p var/datasets && chown -R www-data:www-data var

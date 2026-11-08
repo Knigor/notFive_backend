@@ -35,6 +35,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
 
 
@@ -82,7 +83,7 @@ class NewsletterSmoke:
         self.fixture_prefix = "newsletter-" + uuid.uuid4().hex
         self.emails = {
             name: f"{self.fixture_prefix}-{name}@example.invalid"
-            for name in ("ru", "en", "pending", "late")
+            for name in ("ru", "en", "pending", "late", "last_allowed", "over_limit")
         }
         self.body = (
             f"Сохранённый выпуск {self.fixture_prefix}.\n\n"
@@ -301,9 +302,10 @@ class NewsletterSmoke:
         status, _ = self.request(action, method="POST", form=form.fields, locale=locale)
         require(status == 200, "Confirmation/unsubscribe form submission failed")
 
-    def confirm(self, name, locale):
+    def confirm(self, name, locale, message_count=1):
         email = self.emails[name]
-        confirmation = self.message(self.wait_messages(email, 1)[0]["ID"])
+        messages = self.wait_messages(email, message_count)
+        confirmation = self.message(messages[0]["ID"])
         link = self.email_link(confirmation, "confirm")
         token = urllib.parse.parse_qs(urllib.parse.urlsplit(link).query)["token"][0]
         pending = self.subscription(email)
@@ -362,8 +364,11 @@ class NewsletterSmoke:
         require(errors[0] != errors[1] and re.search("[А-Яа-я]", errors[0]), "Email validation is not localized")
         messages = [self.accepted(self.subscribe(self.emails[name], name)) for name in ("ru", "en")]
         require(messages[0] != messages[1], "Subscription messages are not localized")
-        self.accepted(self.subscribe(self.emails["pending"]))
-        self.accepted(self.subscribe("  " + self.emails["pending"].upper() + "  "))
+        pending = self.emails["pending"]
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            requests = [workers.submit(self.subscribe, email) for email in (pending, "  " + pending.upper() + "  ")]
+            for request in requests:
+                self.accepted(request.result())
         self.wait_messages(self.emails["pending"], 1)
         require(self.subscription(self.emails["pending"])["status"] == "pending", "Pending retry activated the address")
         expired_link = self.email_link(self.message(self.messages(self.emails["pending"])[0]["ID"]), "confirm")
@@ -453,6 +458,36 @@ class NewsletterSmoke:
         self.newsletter("late", 2, "en")
         require(self.sql("SELECT COUNT(*) FROM model_calls") == "0", "Email publication unexpectedly called a model")
         print("PASS: POST unsubscribe excludes the address from the next issue; no model calls")
+
+        last_allowed = self.emails["last_allowed"]
+        self.accepted(self.subscribe(last_allowed))
+        self.wait_messages(last_allowed, 1)
+        require(self.subscription(last_allowed)["status"] == "pending", "Concurrent requests did not create one pending subscription")
+        over_limit = self.emails["over_limit"]
+        self.accepted(self.subscribe(over_limit))
+        self.wait_messages(over_limit, 0)
+        require(
+            self.sql("SELECT COUNT(*) FROM delivery_targets WHERE destination = " + quote(over_limit)) == "0",
+            "A rate-limited request created a pending row",
+        )
+        print("PASS: one email for concurrent requests and no database row above the quota")
+
+        self.sql(
+            "UPDATE email_subscription_limits SET window_start = CURRENT_TIMESTAMP - INTERVAL '10 minutes' "
+            "WHERE ip_hash IN (" + ", ".join(map(quote, self.limit_ids)) + ")"
+        )
+        self.accepted(self.subscribe(self.emails["ru"]))
+        self.confirm("ru", "ru", message_count=3)
+        status, _ = self.request(unsubscribe, method="POST", form={})
+        require(status == 400 and self.subscription(self.emails["ru"])["status"] == "active", "An old unsubscribe link still works")
+        third = self.fixture_run()
+        self.published(self.publish(third), third, sent=3)
+        new_unsubscribe = self.newsletter("ru", 4, "ru")
+        status, page = self.request(new_unsubscribe)
+        require(status == 200, "The new unsubscribe link did not open")
+        self.post_form(new_unsubscribe, page, "ru")
+        require(self.subscription(self.emails["ru"])["status"] == "unsubscribed", "The new unsubscribe link did not work")
+        print("PASS: re-confirmation rotates the unsubscribe token")
 
     def cleanup(self):
         failures = []

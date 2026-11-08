@@ -8,3 +8,5 @@ doctrine:
         password: '%env(POSTGRES_PASSWORD)%'
         server_version: '17'
         charset: UTF8
+    orm:
+        auto_mapping: false
