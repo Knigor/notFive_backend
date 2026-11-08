@@ -137,7 +137,7 @@ docker compose exec -T app php bin/console digest:publish RUN_UUID
 
 В прототипе отправка выполняется синхронно внутри запроса публикации, без фонового worker. При большой базе подписчиков её следует вынести в очередь. Если процесс аварийно завершится после принятия письма SMTP, но до фиксации статуса в БД, повторная попытка может дать дубль: обычный SMTP не предоставляет атомарность с PostgreSQL.
 
-Локально запустите Mailpit: `docker compose up -d mailpit`. Письма видны на `http://localhost:8025`. Для production задайте почтовые настройки через существующие секреты `MAILER_DSN` и `MAIL_FROM_ADDRESS` окружения GitHub `production`. В `.env.production` `DEFAULT_URI` должен быть публичным адресом backend, например `http://api.galaxiit.ru`; ссылки в письмах строятся из него. Отключённый почтовый транспорт не считается успешной отправкой. Реальные пароли/DSN не коммитить.
+Локально запустите Mailpit: `docker compose up -d mailpit`. Письма видны на `http://localhost:8025`. Для production задайте почтовые настройки через существующие секреты `MAILER_DSN` и `MAIL_FROM_ADDRESS` окружения GitHub `production`. Публичный адрес backend в `DEFAULT_URI` — `https://api.galaxiit.ru`; он задан также в локальном `.env` по запросу команды. Ссылки подтверждения и отписки строятся из него. Для полностью локальной проверки писем можно явно переопределить `DEFAULT_URI=http://localhost:8080` в `.env.local`. Отключённый почтовый транспорт не считается успешной отправкой. Реальные пароли/DSN не коммитить.
 
 Фронтенд-клиент предоставляет `api.subscribeEmail(email, { locale: 'ru' })` и `api.publishDigest(runId, token)`. На главной frontend кнопка «Подписаться» открывает EmailSubscriptionDialog: email, отправка через subscribeEmail и сообщение о подтверждении по почте. Поддерживаются RU/EN, ошибки и повторная отправка.
 
@@ -265,7 +265,19 @@ Apache внутри образа обслуживает PHP по HTTP. Поэт�
    curl --fail http://127.0.0.1:8080/healthz
    ```
 
-5. В `deploy/nginx.conf` заменить `example.com` своим доменом, добавить конфигурацию в Nginx, проверить `sudo nginx -t` и перезагрузить Nginx. Настроить DNS и HTTPS-сертификат, например через Certbot. Пример содержит только HTTP: TLS нужно настроить до публичного использования. При изменении `HTTP_PORT` также изменить порт в Nginx.
+5. Для нового сервера направить DNS A-запись `api.galaxiit.ru` на IP сервера и открыть порты 80/443. Установить `deploy/nginx.conf` в Nginx, проверить `sudo nginx -t` и перезагрузить Nginx. Это начальная HTTP-конфигурация для выпуска сертификата; при другом домене или `HTTP_PORT` изменить соответствующие значения. Затем включить HTTPS:
+
+   ```sh
+   sudo apt-get update
+   sudo apt-get install -y certbot python3-certbot-nginx
+   sudo certbot --nginx --redirect -d api.galaxiit.ru
+   sudo nginx -t
+   sudo certbot renew --dry-run
+   systemctl list-timers certbot.timer
+   curl --fail https://api.galaxiit.ru/healthz
+   ```
+
+   Certbot добавляет TLS и перенаправление HTTP → HTTPS в конфигурацию сервера. После этого не заменяйте её начальным `deploy/nginx.conf`; релиз приложения эту конфигурацию не перезаписывает. На действующем VPS HTTPS уже настроен, повторять установку не нужно. В GitHub Environment `production` backend задайте `DEFAULT_URI=https://api.galaxiit.ru`, в Environment `github-pages` frontend — `URL_BACKEND=https://api.galaxiit.ru/`. Локальные `.env` используют тот же публичный адрес. Внутренние `http://127.0.0.1:8080` и `http://digest:8081` остаются HTTP. Браузер обращается к API непосредственно по HTTPS: CORS не снимает блокировку Mixed Content.
 
 6. Добавить GitHub secrets и включить `DEPLOY_ENABLED=true`. Следующий опубликованный релиз выполнит деплой автоматически.
 
