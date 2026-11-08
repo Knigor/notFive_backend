@@ -31,3 +31,16 @@ type Generation struct {
 type Provider interface {
 	Generate(ctx context.Context, instructions, input string) (Generation, error)
 }
+
+type domainsContextKey struct{}
+
+func WithDomains(ctx context.Context, domains []string) context.Context {
+	return context.WithValue(ctx, domainsContextKey{}, domains)
+}
+
+func Domains(ctx context.Context, fallback []string) []string {
+	if domains, ok := ctx.Value(domainsContextKey{}).([]string); ok {
+		return domains
+	}
+	return fallback
+}

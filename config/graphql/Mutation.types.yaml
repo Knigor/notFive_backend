@@ -1,0 +1,45 @@
+Mutation:
+    type: object
+    config:
+        fields:
+            startRun:
+                type: RunStartPayload!
+                args:
+                    input: RunStartInput!
+                resolve: '@=mutation("App\\GraphQL\\Mutation\\StartRunMutation::startRun", args["input"])'
+                complexity: '@=childrenComplexity + 1'
+
+RunStartInput:
+    type: input-object
+    config:
+        fields:
+            file:
+                type: Upload
+            sites:
+                type: '[String!]'
+            controlTime:
+                type: String
+
+RunStartPayload:
+    type: object
+    config:
+        fields:
+            runId:
+                type: ID!
+            imported:
+                type: Int!
+            rejected:
+                type: Int!
+            siteCount:
+                type: Int!
+            inputKind:
+                type: String!
+            dispatchStatus:
+                type: String!
+            status:
+                type: String!
+
+Upload:
+    type: custom-scalar
+    config:
+        scalarType: '@=newObject("Overblog\\GraphQLBundle\\Upload\\Type\\GraphQLUploadType")'

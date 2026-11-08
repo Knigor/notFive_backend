@@ -33,3 +33,26 @@ telegram:
 digest_email:
     invalid_content: Проверьте содержание письма.
     invalid_request: Проверьте данные письма.
+dataset_import:
+    invalid_arguments: 'Укажите путь к файлу и корректное контрольное время.'
+    failed: 'Импорт не выполнен: %reason%'
+    completed: 'Запуск %run_id% создан. Загружено: %imported%; ошибок строк: %failed%.'
+    error:
+        unsupported_format: 'Поддерживаются только JSON и CSV.'
+        unreadable_file: 'Файл не удалось прочитать.'
+        invalid_json: 'Файл содержит некорректный JSON.'
+        invalid_structure: 'В JSON отсутствуют обязательные поля или они имеют неверный тип.'
+        invalid_period: 'Период в JSON должен составлять ровно 24 часа.'
+        invalid_timezone: 'В JSON ожидается часовой пояс Europe/Moscow.'
+        invalid_csv: 'Заголовок или структура CSV некорректны.'
+        invalid_timestamp: 'Время должно быть в формате ISO 8601 с часовым поясом.'
+        file_too_large: 'Размер файла превышает 50 МБ.'
+        storage_error: 'Не удалось сохранить исходный файл.'
+        control_time_conflict: 'Указанное контрольное время не совпадает со временем в JSON.'
+        csv_time_required: 'Для CSV укажите --control-time.'
+run_start:
+    invalid_file: 'Не удалось загрузить файл.'
+    missing_input: 'Добавьте файл или хотя бы один сайт.'
+    multiple_inputs: 'Укажите либо файл, либо сайты.'
+    control_time_required: 'Для сайтов укажите контрольное время.'
+    invalid_sites: 'Укажите не более пяти разных HTTPS-адресов сайтов без пути и параметров.'

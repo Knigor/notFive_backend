@@ -17,8 +17,24 @@ if [ "$#" -eq 2 ]; then
 fi
 
 export APP_IMAGE="$1"
-compose() { docker compose --env-file .env.production -f compose.prod.yaml "$@"; }
-bot_compose() { docker compose --env-file .env.production -f compose.prod.yaml --profile telegram "$@"; }
+digest_network=''
+if grep -Eq '^GO_SERVICE_URL=http://digest:8081/?$' .env.production; then
+    digest_network=1
+fi
+compose() {
+    if [ -n "$digest_network" ]; then
+        docker compose --env-file .env.production -f compose.prod.yaml -f compose.digest.yaml "$@"
+    else
+        docker compose --env-file .env.production -f compose.prod.yaml "$@"
+    fi
+}
+bot_compose() {
+    if [ -n "$digest_network" ]; then
+        docker compose --env-file .env.production -f compose.prod.yaml -f compose.digest.yaml --profile telegram "$@"
+    else
+        docker compose --env-file .env.production -f compose.prod.yaml --profile telegram "$@"
+    fi
+}
 
 previous=''
 bot_was_running=''

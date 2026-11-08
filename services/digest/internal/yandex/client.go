@@ -80,7 +80,7 @@ func (c *Client) Generate(ctx context.Context, instructions, input string) (gen 
 	started := time.Now().UTC()
 	defer func() { gen.DurationMS = time.Since(started).Milliseconds() }()
 	body := map[string]any{"model": "gpt://" + c.cfg.FolderID + "/" + c.cfg.Model, "instructions": instructions, "input": input, "temperature": 0.1, "max_output_tokens": c.cfg.MaxOutputTokens, "store": false}
-	body["tools"] = []any{map[string]any{"type": "web_search", "search_context_size": SearchContextSize, "filters": map[string]any{"allowed_domains": c.cfg.Domains}, "user_location": map[string]any{"region": "213"}}}
+	body["tools"] = []any{map[string]any{"type": "web_search", "search_context_size": SearchContextSize, "filters": map[string]any{"allowed_domains": collector.Domains(ctx, c.cfg.Domains)}, "user_location": map[string]any{"region": "213"}}}
 	body["tool_choice"] = "required"
 	encoded, err := json.Marshal(body)
 	if err != nil {

@@ -5,7 +5,7 @@ TOOL_RUN := docker run --rm --user $(shell id -u):$(shell id -g) -v $(CURDIR):/a
 PHP_TOOL := $(TOOL_RUN) --entrypoint php $(TOOL_IMAGE)
 COMPOSER_TOOL := $(TOOL_RUN) -e COMPOSER_HOME=/tmp/composer --entrypoint composer $(TOOL_IMAGE)
 BASE ?= origin/master
-CHANGED_PHP_FILES := $(filter %.php,$(sort $(shell { git diff --name-only --diff-filter=ACMRT $(BASE)...HEAD; git diff --name-only --diff-filter=ACMRT; git diff --cached --name-only --diff-filter=ACMRT; git ls-files --others --exclude-standard; } 2>/dev/null)))
+CHANGED_PHP_FILES := $(filter %.php,$(wildcard $(sort $(shell { git diff --name-only --diff-filter=ACMRT $(BASE)...HEAD; git diff --name-only --diff-filter=ACMRT; git diff --cached --name-only --diff-filter=ACMRT; git ls-files --others --exclude-standard; } 2>/dev/null))))
 
 .PHONY: tooling lint lint-all phpstan phpstan-all php-cs php-cs-all php-cs-fix php-cs-fix-all rector rector-all rector-fix rector-fix-all
 .NOTPARALLEL:
