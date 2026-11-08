@@ -23,3 +23,7 @@
 config/secrets/
 config/reference.php
 public/bundles/
+
+!fixtures/
+!fixtures/digest/
+!fixtures/digest/**

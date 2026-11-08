@@ -14,6 +14,7 @@ services:
     environment:
       APP_ENV: dev
       APP_DEBUG: '1'
+      APP_AUTO_MIGRATE: ${APP_AUTO_MIGRATE:-1}
       APP_SECRET: ${APP_SECRET:-notfive-local-development-only}
       JWT_SECRET: ${JWT_SECRET:-notfive-local-jwt-secret-change-in-production-2026}
       APP_CORS_ORIGIN: ${APP_CORS_ORIGIN:-http://localhost:5173}

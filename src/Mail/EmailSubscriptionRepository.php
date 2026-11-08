@@ -15,21 +15,21 @@ final readonly class EmailSubscriptionRepository
     public function reserveConfirmation(string $email, string $locale, string $clientIp): ?string
     {
         return $this->connection->transactional(function () use ($email, $locale, $clientIp): ?string {
-            $this->connection->executeStatement(<<<'SQL'
-                INSERT INTO delivery_targets (id, channel, destination, status, locale)
-                VALUES (gen_random_uuid(), 'email', :email, 'pending', :locale)
-                ON CONFLICT (channel, destination) DO NOTHING
-                SQL, ['email' => $email, 'locale' => $locale]);
+            // Serialize requests for the same address even before it has a row.
+            $this->connection->fetchOne(
+                "SELECT pg_advisory_xact_lock(hashtextextended('email_subscription:' || :email, 0))",
+                ['email' => $email],
+            );
 
             $target = $this->connection->fetchAssociative(<<<'SQL'
-                SELECT id, status,
+                SELECT status,
                     CASE WHEN email_confirmation_sent_at > CURRENT_TIMESTAMP - INTERVAL '60 seconds' THEN 1 ELSE 0 END AS cooling_down
                 FROM delivery_targets
                 WHERE channel = 'email' AND destination = :email
                 FOR UPDATE
                 SQL, ['email' => $email]);
 
-            if (false === $target || 'active' === $target['status'] || 1 === (int) $target['cooling_down']) {
+            if (false !== $target && ('active' === $target['status'] || 1 === (int) $target['cooling_down'])) {
                 return null;
             }
 
@@ -39,18 +39,19 @@ final readonly class EmailSubscriptionRepository
 
             $token = bin2hex(random_bytes(32));
             $this->connection->executeStatement(<<<'SQL'
-                UPDATE delivery_targets
-                SET status = 'pending', locale = :locale, confirmed_at = NULL,
-                    email_confirmation_token_hash = :token_hash,
-                    email_confirmation_expires_at = CURRENT_TIMESTAMP + INTERVAL '24 hours',
-                    email_confirmation_sent_at = CURRENT_TIMESTAMP,
-                    email_unsubscribe_token = COALESCE(email_unsubscribe_token, :unsubscribe_token)
-                WHERE id = :id
+                INSERT INTO delivery_targets (id, channel, destination, status, locale,
+                    email_confirmation_token_hash, email_confirmation_expires_at, email_confirmation_sent_at)
+                VALUES (gen_random_uuid(), 'email', :email, 'pending', :locale,
+                    :token_hash, CURRENT_TIMESTAMP + INTERVAL '24 hours', CURRENT_TIMESTAMP)
+                ON CONFLICT (channel, destination) DO UPDATE
+                SET status = 'pending', locale = EXCLUDED.locale, confirmed_at = NULL,
+                    email_confirmation_token_hash = EXCLUDED.email_confirmation_token_hash,
+                    email_confirmation_expires_at = EXCLUDED.email_confirmation_expires_at,
+                    email_confirmation_sent_at = EXCLUDED.email_confirmation_sent_at
                 SQL, [
-                'id' => (string) $target['id'],
+                'email' => $email,
                 'locale' => $locale,
                 'token_hash' => hash('sha256', $token),
-                'unsubscribe_token' => bin2hex(random_bytes(32)),
             ]);
 
             return $token;
@@ -89,10 +90,11 @@ final readonly class EmailSubscriptionRepository
 
         $updated = $this->connection->executeStatement(<<<'SQL'
             UPDATE delivery_targets
-            SET status = 'active', confirmed_at = CURRENT_TIMESTAMP, email_confirmation_expires_at = NULL
+            SET status = 'active', confirmed_at = CURRENT_TIMESTAMP, email_confirmation_expires_at = NULL,
+                email_unsubscribe_token = :unsubscribe_token
             WHERE channel = 'email' AND status = 'pending' AND email_confirmation_token_hash = :token_hash
                 AND email_confirmation_expires_at > CURRENT_TIMESTAMP
-            SQL, ['token_hash' => hash('sha256', $token)]);
+            SQL, ['token_hash' => hash('sha256', $token), 'unsubscribe_token' => bin2hex(random_bytes(32))]);
 
         return 1 === $updated || 'active' === $this->confirmationState($token);
     }
