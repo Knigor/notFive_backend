@@ -1,0 +1,5 @@
+lexik_jwt_authentication:
+    secret_key: '%env(JWT_SECRET)%'
+    token_ttl: '%admin_jwt_ttl%'
+    encoder:
+        signature_algorithm: HS256

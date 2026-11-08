@@ -9,3 +9,5 @@ if [ -e "$1" ]; then
 else
     php bin/console doctrine:migrations:status --no-interaction
 fi
+
+php bin/console admin:bootstrap --no-interaction

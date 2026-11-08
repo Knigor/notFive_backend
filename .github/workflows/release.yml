@@ -91,6 +91,9 @@ jobs:
           MAILER_DSN: ${{ secrets.MAILER_DSN }}
           MAIL_FROM_ADDRESS: ${{ secrets.MAIL_FROM_ADDRESS }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_BOOTSTRAP_USERNAME: ${{ secrets.ADMIN_BOOTSTRAP_USERNAME }}
+          ADMIN_BOOTSTRAP_PASSWORD: ${{ secrets.ADMIN_BOOTSTRAP_PASSWORD }}
           IMAGE: ${{ needs.publish.outputs.image }}
         run: |
           [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
@@ -99,10 +102,15 @@ jobs:
           [[ -n "$MAILER_DSN" ]]
           [[ -n "$MAIL_FROM_ADDRESS" ]]
           [[ -n "$TELEGRAM_BOT_TOKEN" ]]
+          [[ "$JWT_SECRET" =~ ^[a-f0-9]{64}$ ]]
+          [[ "$ADMIN_BOOTSTRAP_USERNAME" =~ ^[a-z][a-z0-9_]{2,63}$ ]]
+          [[ "$ADMIN_BOOTSTRAP_PASSWORD" =~ ^[A-Za-z0-9_@.:-]{12,128}$ ]]
           [[ "$IMAGE" =~ ^[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
           ssh_opts=(-p "$DEPLOY_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)
-          tar -czf - compose.prod.yaml compose.digest.yaml deploy/deploy.sh deploy/update-mailer-env.sh deploy/update-telegram-env.sh | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'tar -xzf - -C /opt/notfive'
+          tar -czf - compose.prod.yaml compose.digest.yaml deploy/deploy.sh deploy/update-mailer-env.sh deploy/update-telegram-env.sh deploy/update-jwt-env.sh deploy/update-admin-env.sh | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'tar -xzf - -C /opt/notfive'
           printf '%s\n' "$TELEGRAM_BOT_TOKEN" | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'sh /opt/notfive/deploy/update-telegram-env.sh'
+          printf '%s\n' "$JWT_SECRET" | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'sh /opt/notfive/deploy/update-jwt-env.sh'
+          printf '%s\n%s\n' "$ADMIN_BOOTSTRAP_USERNAME" "$ADMIN_BOOTSTRAP_PASSWORD" | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" 'sh /opt/notfive/deploy/update-admin-env.sh'
           printf '%s\n%s\n' "$MAILER_DSN" "$MAIL_FROM_ADDRESS" | ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" "sh /opt/notfive/deploy/deploy.sh '$IMAGE' --mailer-from-stdin"
       - name: Remove SSH key
         if: always()

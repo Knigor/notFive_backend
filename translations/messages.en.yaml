@@ -53,6 +53,18 @@ dataset_import:
 run_start:
     invalid_file: 'The file could not be uploaded.'
     missing_input: 'Add a file or at least one site.'
-    multiple_inputs: 'Provide either a file or sites.'
-    control_time_required: 'Specify a control time for site collection.'
-    invalid_sites: 'Provide no more than five distinct HTTPS site URLs without paths or parameters.'
+    multiple_inputs: 'Provide either a file or selected sites.'
+    control_time_required: 'Specify a control time when no file is uploaded.'
+    invalid_sources: 'Select no more than five distinct, available sites from the catalog.'
+auth:
+    invalid_input: 'Check the username and password.'
+    invalid_credentials: 'Invalid username or password.'
+    forbidden: 'Administrator sign-in is required for this action.'
+    admin_create:
+        password: 'Password'
+        invalid: 'Provide a valid username and a password of at least 12 characters.'
+        exists: 'An administrator with this username already exists.'
+        created: 'Administrator created.'
+    admin_bootstrap:
+        invalid: 'The deployment administrator username or password is not configured.'
+        ready: 'The administrator account is ready.'

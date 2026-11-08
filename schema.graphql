@@ -1,14 +1,34 @@
 type Query {
   ping: Int!
+  availableSiteSources: [SiteSource!]!
+}
+
+type SiteSource {
+  id: ID!
+  name: String!
+  taskUrl: String!
+  searchDomain: String!
+  status: String!
 }
 
 type Mutation {
+  login(input: AdminLoginInput!): AdminLoginPayload!
   startRun(input: RunStartInput!): RunStartPayload!
+}
+
+input AdminLoginInput {
+  username: String!
+  password: String!
+}
+
+type AdminLoginPayload {
+  token: String!
+  expiresIn: Int!
 }
 
 input RunStartInput {
   file: Upload
-  sites: [String!]
+  sourceIds: [ID!]
   controlTime: String
 }
 
