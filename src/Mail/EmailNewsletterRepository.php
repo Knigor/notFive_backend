@@ -31,7 +31,7 @@ final readonly class EmailNewsletterRepository
     /**
      * Called inside a transaction. The target lock also serializes sending with unsubscribe.
      *
-     * @return array{recipient: string, locale: string, token: string, subject: string, content: string}|null
+     * @return array{recipient: string, locale: string, token: string}|null
      */
     public function lockMessage(string $deliveryId, string $targetId): ?array
     {
@@ -43,8 +43,8 @@ final readonly class EmailNewsletterRepository
             return null;
         }
 
-        $message = $this->connection->fetchAssociative(<<<'SQL'
-            SELECT a.content, e.subject FROM deliveries d
+        $locked = $this->connection->fetchOne(<<<'SQL'
+            SELECT d.id FROM deliveries d
             JOIN artifacts a ON a.id = d.artifact_id
             JOIN email_preview_details e ON e.artifact_id = a.id
             JOIN runs r ON r.id = a.run_id
@@ -52,7 +52,7 @@ final readonly class EmailNewsletterRepository
               AND a.kind = 'email_preview' AND r.status = 'completed' AND r.published_at IS NOT NULL
             FOR UPDATE OF d SKIP LOCKED
             SQL, ['id' => $deliveryId, 'target' => $targetId]);
-        if (false === $message) {
+        if (false === $locked) {
             return null;
         }
         if ('active' !== $target['status'] || null === $target['email_unsubscribe_token']) {
@@ -66,8 +66,6 @@ final readonly class EmailNewsletterRepository
             'recipient' => (string) $target['destination'],
             'locale' => (string) $target['locale'],
             'token' => (string) $target['email_unsubscribe_token'],
-            'subject' => (string) $message['subject'],
-            'content' => (string) $message['content'],
         ];
     }
 

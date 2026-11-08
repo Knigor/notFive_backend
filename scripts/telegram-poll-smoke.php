@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-use App\Telegram\PublishedDigestRepository;
+use App\Digest\PublishedDigestRepository;
 use App\Telegram\TelegramApiClient;
+use App\Telegram\TelegramDigestSender;
 use App\Telegram\TelegramMessages;
 use App\Telegram\TelegramPoller;
 use App\Telegram\TelegramSubscriptionRepository;
@@ -22,6 +23,8 @@ $connection->executeStatement('CREATE TABLE telegram_updates (update_id INTEGER 
 $connection->executeStatement('CREATE TABLE delivery_targets (id TEXT PRIMARY KEY, channel TEXT, destination TEXT, status TEXT, confirmed_at TEXT, locale TEXT, UNIQUE(channel, destination))');
 $connection->executeStatement('CREATE TABLE runs (id TEXT PRIMARY KEY, status TEXT, published_at TEXT)');
 $connection->executeStatement('CREATE TABLE artifacts (id TEXT PRIMARY KEY, run_id TEXT, content TEXT, kind TEXT)');
+$connection->executeStatement('CREATE TABLE email_preview_details (artifact_id TEXT PRIMARY KEY, subject TEXT)');
+$connection->executeStatement('CREATE TABLE events (id TEXT PRIMARY KEY, run_id TEXT, rank INTEGER, title TEXT, summary TEXT, consequences TEXT)');
 $pdo = $connection->getNativeConnection();
 assert($pdo instanceof PDO);
 $pdo->sqliteCreateFunction('gen_random_uuid', static fn (): string => '00000000-0000-0000-0000-000000000001');
@@ -49,7 +52,8 @@ $translator->addResource('yaml', dirname(__DIR__).'/translations/messages.ru.yam
 $translator->addResource('yaml', dirname(__DIR__).'/translations/messages.en.yaml', 'en');
 $telegram = new TelegramApiClient($client, 'test-token', 'https://api.telegram.org');
 $subscriptions = new TelegramSubscriptionRepository($connection);
-$handler = new TelegramUpdateHandler($telegram, $subscriptions, new PublishedDigestRepository($connection), new TelegramMessages($translator));
+$messages = new TelegramMessages($translator);
+$handler = new TelegramUpdateHandler($telegram, $subscriptions, new PublishedDigestRepository($connection), $messages, new TelegramDigestSender($telegram, $messages));
 $poller = new TelegramPoller($telegram, new TelegramUpdateRepository($connection), $handler);
 
 assert(103 === $poller->pollOnce(0, 0));
@@ -64,5 +68,17 @@ assert(str_contains($sent[0][1]['text'], 'notFive'));
 assert(str_contains($sent[1][1]['text'], 'Language: English'));
 assert(str_contains($sent[2][1]['text'], 'edition is being prepared'));
 assert('success' === $sent[0][1]['reply_markup']['inline_keyboard'][0][0]['style']);
+
+$connection->executeStatement("INSERT INTO runs VALUES ('run', 'completed', CURRENT_TIMESTAMP)");
+$connection->executeStatement("INSERT INTO artifacts VALUES ('post', 'run', 'Короткий пост', 'post'), ('email', 'run', 'Полный текст выпуска', 'email_preview')");
+$connection->executeStatement("INSERT INTO email_preview_details VALUES ('email', 'Тема выпуска')");
+$handler->handle($updates[2]);
+$lastIndex = array_key_last($requests);
+assert(null !== $lastIndex);
+$last = $requests[$lastIndex][1];
+assert('HTML' === $last['parse_mode']);
+assert(str_contains($last['text'], '<b>Тема выпуска</b>'));
+assert(str_contains($last['text'], 'Полный текст выпуска'));
+assert(!str_contains($last['text'], 'Короткий пост'));
 
 echo "Telegram polling smoke passed.\n";

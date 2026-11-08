@@ -2,10 +2,63 @@
 <html lang="{{ locale }}">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ subject }}</title>
+    <style>
+        @media only screen and (max-width: 560px) {
+            .content-pad { padding-right: 22px !important; padding-left: 22px !important; }
+            .hero-title { font-size: 27px !important; }
+            .hero-mark { display: none !important; }
+        }
+    </style>
 </head>
-<body>
-    <h1>{{ subject }}</h1>
-    <div style="white-space: pre-wrap">{{ digest }}</div>
+<body style="margin:0;padding:0;background:#f3f6f4;color:#182522;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f6f4;">
+    <tr>
+        <td align="center" style="padding:24px 10px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:660px;background:#ffffff;border-top:5px solid #178257;border-radius:14px;">
+                <tr>
+                    <td class="content-pad" style="padding:34px 40px 24px;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                            <tr>
+                                <td valign="middle">
+                                    <p style="margin:0 0 14px;color:#137751;font-size:13px;font-weight:bold;letter-spacing:2px;">NOTFIVE&nbsp; / &nbsp;DIGEST</p>
+                                    <h1 class="hero-title" style="margin:0;color:#14241e;font-size:34px;line-height:1.16;font-weight:700;">{{ subject }}</h1>
+                                </td>
+                                <td class="hero-mark" width="130" valign="middle" style="padding-left:18px;">
+                                    <table role="presentation" width="130" height="130" cellspacing="0" cellpadding="0" style="background:#102c24;border-radius:18px;">
+                                        <tr><td align="center" valign="middle" style="color:#90efb7;font-size:43px;font-weight:bold;letter-spacing:-3px;">n5</td></tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                {% for section in sections %}
+                    <tr>
+                        <td class="content-pad" style="padding:{% if section.title %}22px{% else %}0{% endif %} 40px 20px;">
+                            {% if section.title %}
+                                <div style="border-top:1px solid #dce7e1;padding-top:20px;">
+                                    <span style="display:inline-block;background:#e0f4e8;color:#166346;border-radius:20px;padding:4px 10px;font-size:13px;font-weight:bold;">{{ '%02d'|format(section.number) }}</span>
+                                    <h2 style="margin:9px 0 13px;color:#14241e;font-size:23px;line-height:1.27;">{{ section.title }}</h2>
+                                </div>
+                            {% endif %}
+                            {% for line in section.lines %}
+                                <p style="margin:0 0 10px;color:#25342f;font-size:16px;line-height:1.58;overflow-wrap:anywhere;">{% if line.label %}<strong>{{ line.label }}:</strong> {% endif %}{% for part in line.parts %}{% if loop.index0 is odd %}<a href="{{ part }}" style="color:#1762ac;text-decoration:underline;">{{ part }}</a>{% else %}{{ part }}{% endif %}{% endfor %}</p>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                {% if unsubscribe_url %}
+                    <tr>
+                        <td class="content-pad" style="padding:18px 40px 28px;border-top:1px solid #dce7e1;font-size:13px;">
+                            <a href="{{ unsubscribe_url }}" style="color:#50645c;text-decoration:underline;">{{ unsubscribe_label }}</a>
+                        </td>
+                    </tr>
+                {% endif %}
+            </table>
+        </td>
+    </tr>
+</table>
 </body>
 </html>

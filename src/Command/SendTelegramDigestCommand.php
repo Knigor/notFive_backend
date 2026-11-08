@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace App\Command;
 
-use App\Telegram\PublishedDigestRepository;
-use App\Telegram\TelegramApiClient;
+use App\Digest\PublishedDigestRepository;
 use App\Telegram\TelegramApiException;
 use App\Telegram\TelegramDeliveryRepository;
-use App\Telegram\TelegramMessages;
+use App\Telegram\TelegramDigestSender;
 use App\Telegram\TelegramSubscriptionRepository;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -23,8 +22,7 @@ final class SendTelegramDigestCommand extends Command
         private readonly PublishedDigestRepository $digests,
         private readonly TelegramSubscriptionRepository $subscriptions,
         private readonly TelegramDeliveryRepository $deliveries,
-        private readonly TelegramApiClient $telegram,
-        private readonly TelegramMessages $messages,
+        private readonly TelegramDigestSender $sender,
         private readonly TranslatorInterface $translator,
     ) {
         parent::__construct();
@@ -34,7 +32,7 @@ final class SendTelegramDigestCommand extends Command
     {
         $digest = $this->digests->latest();
 
-        if (null === $digest) {
+        if (null === $digest || null === $digest->postArtifactId) {
             $output->writeln($this->translator->trans('telegram.command.no_digest'));
 
             return Command::FAILURE;
@@ -44,18 +42,14 @@ final class SendTelegramDigestCommand extends Command
         $failed = 0;
 
         foreach ($this->subscriptions->activeTargets() as $target) {
-            $deliveryId = $this->deliveries->claim($digest->artifactId, $target['id']);
+            $deliveryId = $this->deliveries->claim($digest->postArtifactId, $target['id']);
 
             if (null === $deliveryId) {
                 continue;
             }
 
             try {
-                $messageId = $this->telegram->sendMessage(
-                    $target['destination'],
-                    $this->messages->digest($digest, $target['locale']),
-                    $this->messages->digestButtons($digest, $target['locale']),
-                );
+                $messageId = $this->sender->send($target['destination'], $digest, $target['locale']);
                 $this->deliveries->sent($deliveryId, $messageId);
                 ++$sent;
             } catch (TelegramApiException $exception) {
