@@ -17,12 +17,12 @@ import (
 )
 
 type PipelineResult struct {
-	RunID    string            `json:"run_id"`
-	Status   string            `json:"status"`
-	News     NewsDataset       `json:"news"`
-	Analysis analysis.Result   `json:"analysis"`
-	Files    map[string]string `json:"files"`
-	Warnings []string          `json:"warnings"`
+	RunID    string          `json:"run_id"`
+	Status   string          `json:"status"`
+	News     NewsDataset     `json:"news"`
+	Analysis analysis.Result `json:"analysis"`
+	Draft    export.Result   `json:"draft"`
+	Warnings []string        `json:"warnings"`
 }
 
 type PipelineAudit struct {
@@ -224,7 +224,7 @@ func (s *Server) runPipeline(w http.ResponseWriter, r *http.Request, input any, 
 				}
 			}
 		}
-		run.Pipeline.Result = &PipelineResult{RunID: run.ID, Status: "completed", News: *dataset, Analysis: *run.Analysis.Result, Files: run.Export.Result.Files, Warnings: warnings}
+		run.Pipeline.Result = &PipelineResult{RunID: run.ID, Status: "completed", News: *dataset, Analysis: *run.Analysis.Result, Draft: *run.Export.Result, Warnings: warnings}
 	}
 	s.completePipeline(w, r, &run, err)
 }

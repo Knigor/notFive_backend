@@ -9,6 +9,68 @@ type Query {
 
 type Mutation {
   collect(input: CollectInput!): CollectResult!
+  prepareDigest(input: PrepareDigestInput!): PreparedDigest!
+}
+
+input PrepareDigestInput {
+  controlTime: String!
+  items: [MaterialInput!]!
+}
+
+type PreparedDigest {
+  groups: [DigestGroup!]!
+  recommendedOrder: [String!]!
+  excluded: [DigestExclusion!]!
+  events: [DigestEvent!]!
+  selectionSummary: String!
+  warnings: [String!]!
+  analysisModel: String!
+  draftModel: String!
+  analysisPromptVersion: String!
+  draftPromptVersion: String!
+  analysisUsageJson: String
+  draftUsageJson: String
+  analysisDurationMs: Int!
+  draftDurationMs: Int!
+}
+
+type DigestGroup {
+  id: String!
+  name: String!
+  ids: [String!]!
+  facts: [DigestFact!]!
+  contradictions: [DigestContradiction!]!
+  selectionReason: String!
+}
+
+type DigestFact {
+  statement: String!
+  sourceIds: [String!]!
+  evidence: [DigestEvidence!]!
+}
+
+type DigestEvidence {
+  articleId: String!
+  quote: String!
+}
+
+type DigestContradiction {
+  description: String!
+  sourceIds: [String!]!
+}
+
+type DigestExclusion {
+  articleId: String!
+  reason: String!
+}
+
+type DigestEvent {
+  groupId: String!
+  title: String!
+  summary: String!
+  consequences: String!
+  post: String!
+  reason: String!
 }
 
 enum InputKind {

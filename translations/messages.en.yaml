@@ -68,3 +68,30 @@ auth:
     admin_bootstrap:
         invalid: 'The deployment administrator username or password is not configured.'
         ready: 'The administrator account is ready.'
+digest_export:
+    msk: MSK
+    heading: 'Cybersecurity digest: %period%'
+    control_time: 'Control time: %time% MSK.'
+    post_heading: 'Cybersecurity in the past day: %period%'
+    count_one: 'One event in this issue.'
+    count_few: '%count% events in this issue.'
+    count_many: '%count% events in this issue.'
+    no_events: 'No suitable events were found for this period.'
+    essence: Summary
+    consequences: Consequences
+    sources: Sources
+    reason: Reason
+    unknown_date: date not confirmed
+    subject: 'Cybersecurity digest for %time%'
+    email_subject: Subject
+    period: Period
+    import_error: Invalid input row.
+    length_warning: 'File %file% exceeds the %limit% character limit.'
+    status:
+        included: included
+        merged: merged
+        excluded: excluded
+    not_selected: 'Material was not selected for the issue.'
+    invalid_run_id: 'Invalid run ID.'
+    build_failed: 'Could not build the digest. Check application logs and run status.'
+    built: 'Digest %run_id% built. Events: %events%.'

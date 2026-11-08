@@ -82,6 +82,45 @@ func TestGraphQLCollectDatasetAndSites(t *testing.T) {
 	}
 }
 
+func TestGraphQLPrepareDigestReturnsStructuredFields(t *testing.T) {
+	server, calls := pipelineFixture(t, false, "")
+	gql := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{Collector: server}}))
+	gql.AddTransport(transport.POST{})
+	server.MountGraphQL(gql)
+	query := `mutation($input: PrepareDigestInput!) { prepareDigest(input:$input) { groups { id ids facts { evidence { articleId quote } } } recommendedOrder excluded { articleId reason } events { groupId title post } analysisPromptVersion draftPromptVersion } }`
+	input := map[string]any{"controlTime": "2026-11-08T10:00:00Z", "items": []map[string]any{{"id": "A-1", "title": "Test", "text": pipelineTestText, "source": "Test source", "url": pipelineTestURL, "publishedAt": "2026-11-08T10:00:00Z", "missing": []string{}}}}
+	body, err := json.Marshal(map[string]any{"query": query, "variables": map[string]any{"input": input}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := graphQLCall(server, string(body), serviceToken)
+	var result struct {
+		Data struct {
+			PrepareDigest struct {
+				Groups []struct {
+					ID  string   `json:"id"`
+					IDs []string `json:"ids"`
+				} `json:"groups"`
+				RecommendedOrder []string `json:"recommendedOrder"`
+				Events           []struct {
+					GroupID string `json:"groupId"`
+					Post    string `json:"post"`
+				} `json:"events"`
+			} `json:"prepareDigest"`
+		} `json:"data"`
+		Errors []any `json:"errors"`
+	}
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &result) != nil || len(result.Errors) != 0 {
+		t.Fatalf("prepareDigest failed: %d %s", response.Code, response.Body.String())
+	}
+	if !slices.Equal(*calls, []string{"analysis", "export"}) || !slices.Equal(result.Data.PrepareDigest.RecommendedOrder, []string{"G1"}) || len(result.Data.PrepareDigest.Groups) != 1 || !slices.Equal(result.Data.PrepareDigest.Groups[0].IDs, []string{"A-1"}) || len(result.Data.PrepareDigest.Events) != 1 || result.Data.PrepareDigest.Events[0].Post == "" {
+		t.Fatalf("structured draft lost source links or prose: %s", response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), `"files"`) {
+		t.Fatal("GraphQL returned ready files")
+	}
+}
+
 func graphQLCall(server *Server, body, token string) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(http.MethodPost, "/graphql", strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")

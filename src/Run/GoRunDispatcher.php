@@ -24,12 +24,54 @@ final readonly class GoRunDispatcher
         }
         GRAPHQL;
 
+    private const PREPARE_DOCUMENT = <<<'GRAPHQL'
+        mutation PrepareDigest($input: PrepareDigestInput!) {
+          prepareDigest(input: $input) {
+            groups { id name ids selectionReason facts { statement sourceIds evidence { articleId quote } } contradictions { description sourceIds } }
+            recommendedOrder
+            excluded { articleId reason }
+            events { groupId title summary consequences post reason }
+            selectionSummary warnings
+            analysisModel draftModel analysisPromptVersion draftPromptVersion
+            analysisUsageJson draftUsageJson analysisDurationMs draftDurationMs
+          }
+        }
+        GRAPHQL;
+
     public function __construct(
         private HttpClientInterface $client,
         private LoggerInterface $logger,
         private string $goServiceUrl,
         private string $digestServiceToken,
     ) {
+    }
+
+    /** @param list<array<string, mixed>> $items
+     * @return array<string, mixed>
+     */
+    public function prepareDigest(string $controlTime, array $items): array
+    {
+        if ('' === $this->goServiceUrl || '' === $this->digestServiceToken) {
+            throw new \RuntimeException('Go digest service is not configured.');
+        }
+
+        try {
+            $response = $this->client->request('POST', rtrim($this->goServiceUrl, '/').'/graphql', [
+                'auth_bearer' => $this->digestServiceToken,
+                'json' => ['query' => self::PREPARE_DOCUMENT, 'variables' => ['input' => ['controlTime' => $controlTime, 'items' => $items]]],
+                'timeout' => 400,
+                'max_duration' => 420,
+            ]);
+            $body = json_decode($response->getContent(false), true, 512, JSON_THROW_ON_ERROR);
+
+            if (200 === $response->getStatusCode() && is_array($body) && [] === ($body['errors'] ?? []) && is_array($body['data']['prepareDigest'] ?? null)) {
+                return $body['data']['prepareDigest'];
+            }
+        } catch (TransportExceptionInterface|\JsonException $exception) {
+            $this->logger->warning('Go digest preparation failed.', ['exception' => $exception]);
+        }
+
+        throw new \RuntimeException('go_digest_failed');
     }
 
     /** @param array<string, mixed> $input

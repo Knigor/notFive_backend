@@ -70,6 +70,45 @@ type ComplexityRoot struct {
 		Warnings     func(childComplexity int) int
 	}
 
+	DigestContradiction struct {
+		Description func(childComplexity int) int
+		SourceIds   func(childComplexity int) int
+	}
+
+	DigestEvent struct {
+		Consequences func(childComplexity int) int
+		GroupID      func(childComplexity int) int
+		Post         func(childComplexity int) int
+		Reason       func(childComplexity int) int
+		Summary      func(childComplexity int) int
+		Title        func(childComplexity int) int
+	}
+
+	DigestEvidence struct {
+		ArticleID func(childComplexity int) int
+		Quote     func(childComplexity int) int
+	}
+
+	DigestExclusion struct {
+		ArticleID func(childComplexity int) int
+		Reason    func(childComplexity int) int
+	}
+
+	DigestFact struct {
+		Evidence  func(childComplexity int) int
+		SourceIds func(childComplexity int) int
+		Statement func(childComplexity int) int
+	}
+
+	DigestGroup struct {
+		Contradictions  func(childComplexity int) int
+		Facts           func(childComplexity int) int
+		ID              func(childComplexity int) int
+		Ids             func(childComplexity int) int
+		Name            func(childComplexity int) int
+		SelectionReason func(childComplexity int) int
+	}
+
 	ExcludedArticle struct {
 		ID     func(childComplexity int) int
 		Reason func(childComplexity int) int
@@ -77,7 +116,25 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		Collect func(childComplexity int, input model.CollectInput) int
+		Collect       func(childComplexity int, input model.CollectInput) int
+		PrepareDigest func(childComplexity int, input model.PrepareDigestInput) int
+	}
+
+	PreparedDigest struct {
+		AnalysisDurationMs    func(childComplexity int) int
+		AnalysisModel         func(childComplexity int) int
+		AnalysisPromptVersion func(childComplexity int) int
+		AnalysisUsageJSON     func(childComplexity int) int
+		DraftDurationMs       func(childComplexity int) int
+		DraftModel            func(childComplexity int) int
+		DraftPromptVersion    func(childComplexity int) int
+		DraftUsageJSON        func(childComplexity int) int
+		Events                func(childComplexity int) int
+		Excluded              func(childComplexity int) int
+		Groups                func(childComplexity int) int
+		RecommendedOrder      func(childComplexity int) int
+		SelectionSummary      func(childComplexity int) int
+		Warnings              func(childComplexity int) int
 	}
 
 	Query struct {
@@ -87,6 +144,7 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	Collect(ctx context.Context, input model.CollectInput) (*model.CollectResult, error)
+	PrepareDigest(ctx context.Context, input model.PrepareDigestInput) (*model.PreparedDigest, error)
 }
 type QueryResolver interface {
 	Ping(ctx context.Context) (int, error)
@@ -215,6 +273,138 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.CollectResult.Warnings(childComplexity), true
 
+	case "DigestContradiction.description":
+		if e.complexity.DigestContradiction.Description == nil {
+			break
+		}
+
+		return e.complexity.DigestContradiction.Description(childComplexity), true
+	case "DigestContradiction.sourceIds":
+		if e.complexity.DigestContradiction.SourceIds == nil {
+			break
+		}
+
+		return e.complexity.DigestContradiction.SourceIds(childComplexity), true
+
+	case "DigestEvent.consequences":
+		if e.complexity.DigestEvent.Consequences == nil {
+			break
+		}
+
+		return e.complexity.DigestEvent.Consequences(childComplexity), true
+	case "DigestEvent.groupId":
+		if e.complexity.DigestEvent.GroupID == nil {
+			break
+		}
+
+		return e.complexity.DigestEvent.GroupID(childComplexity), true
+	case "DigestEvent.post":
+		if e.complexity.DigestEvent.Post == nil {
+			break
+		}
+
+		return e.complexity.DigestEvent.Post(childComplexity), true
+	case "DigestEvent.reason":
+		if e.complexity.DigestEvent.Reason == nil {
+			break
+		}
+
+		return e.complexity.DigestEvent.Reason(childComplexity), true
+	case "DigestEvent.summary":
+		if e.complexity.DigestEvent.Summary == nil {
+			break
+		}
+
+		return e.complexity.DigestEvent.Summary(childComplexity), true
+	case "DigestEvent.title":
+		if e.complexity.DigestEvent.Title == nil {
+			break
+		}
+
+		return e.complexity.DigestEvent.Title(childComplexity), true
+
+	case "DigestEvidence.articleId":
+		if e.complexity.DigestEvidence.ArticleID == nil {
+			break
+		}
+
+		return e.complexity.DigestEvidence.ArticleID(childComplexity), true
+	case "DigestEvidence.quote":
+		if e.complexity.DigestEvidence.Quote == nil {
+			break
+		}
+
+		return e.complexity.DigestEvidence.Quote(childComplexity), true
+
+	case "DigestExclusion.articleId":
+		if e.complexity.DigestExclusion.ArticleID == nil {
+			break
+		}
+
+		return e.complexity.DigestExclusion.ArticleID(childComplexity), true
+	case "DigestExclusion.reason":
+		if e.complexity.DigestExclusion.Reason == nil {
+			break
+		}
+
+		return e.complexity.DigestExclusion.Reason(childComplexity), true
+
+	case "DigestFact.evidence":
+		if e.complexity.DigestFact.Evidence == nil {
+			break
+		}
+
+		return e.complexity.DigestFact.Evidence(childComplexity), true
+	case "DigestFact.sourceIds":
+		if e.complexity.DigestFact.SourceIds == nil {
+			break
+		}
+
+		return e.complexity.DigestFact.SourceIds(childComplexity), true
+	case "DigestFact.statement":
+		if e.complexity.DigestFact.Statement == nil {
+			break
+		}
+
+		return e.complexity.DigestFact.Statement(childComplexity), true
+
+	case "DigestGroup.contradictions":
+		if e.complexity.DigestGroup.Contradictions == nil {
+			break
+		}
+
+		return e.complexity.DigestGroup.Contradictions(childComplexity), true
+	case "DigestGroup.facts":
+		if e.complexity.DigestGroup.Facts == nil {
+			break
+		}
+
+		return e.complexity.DigestGroup.Facts(childComplexity), true
+	case "DigestGroup.id":
+		if e.complexity.DigestGroup.ID == nil {
+			break
+		}
+
+		return e.complexity.DigestGroup.ID(childComplexity), true
+	case "DigestGroup.ids":
+		if e.complexity.DigestGroup.Ids == nil {
+			break
+		}
+
+		return e.complexity.DigestGroup.Ids(childComplexity), true
+	case "DigestGroup.name":
+		if e.complexity.DigestGroup.Name == nil {
+			break
+		}
+
+		return e.complexity.DigestGroup.Name(childComplexity), true
+	case "DigestGroup.selectionReason":
+		if e.complexity.DigestGroup.SelectionReason == nil {
+			break
+		}
+
+		return e.complexity.DigestGroup.SelectionReason(childComplexity), true
+
 	case "ExcludedArticle.id":
 		if e.complexity.ExcludedArticle.ID == nil {
 			break
@@ -245,6 +435,102 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.Collect(childComplexity, args["input"].(model.CollectInput)), true
+	case "Mutation.prepareDigest":
+		if e.complexity.Mutation.PrepareDigest == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_prepareDigest_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.PrepareDigest(childComplexity, args["input"].(model.PrepareDigestInput)), true
+
+	case "PreparedDigest.analysisDurationMs":
+		if e.complexity.PreparedDigest.AnalysisDurationMs == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.AnalysisDurationMs(childComplexity), true
+	case "PreparedDigest.analysisModel":
+		if e.complexity.PreparedDigest.AnalysisModel == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.AnalysisModel(childComplexity), true
+	case "PreparedDigest.analysisPromptVersion":
+		if e.complexity.PreparedDigest.AnalysisPromptVersion == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.AnalysisPromptVersion(childComplexity), true
+	case "PreparedDigest.analysisUsageJson":
+		if e.complexity.PreparedDigest.AnalysisUsageJSON == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.AnalysisUsageJSON(childComplexity), true
+	case "PreparedDigest.draftDurationMs":
+		if e.complexity.PreparedDigest.DraftDurationMs == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.DraftDurationMs(childComplexity), true
+	case "PreparedDigest.draftModel":
+		if e.complexity.PreparedDigest.DraftModel == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.DraftModel(childComplexity), true
+	case "PreparedDigest.draftPromptVersion":
+		if e.complexity.PreparedDigest.DraftPromptVersion == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.DraftPromptVersion(childComplexity), true
+	case "PreparedDigest.draftUsageJson":
+		if e.complexity.PreparedDigest.DraftUsageJSON == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.DraftUsageJSON(childComplexity), true
+	case "PreparedDigest.events":
+		if e.complexity.PreparedDigest.Events == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.Events(childComplexity), true
+	case "PreparedDigest.excluded":
+		if e.complexity.PreparedDigest.Excluded == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.Excluded(childComplexity), true
+	case "PreparedDigest.groups":
+		if e.complexity.PreparedDigest.Groups == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.Groups(childComplexity), true
+	case "PreparedDigest.recommendedOrder":
+		if e.complexity.PreparedDigest.RecommendedOrder == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.RecommendedOrder(childComplexity), true
+	case "PreparedDigest.selectionSummary":
+		if e.complexity.PreparedDigest.SelectionSummary == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.SelectionSummary(childComplexity), true
+	case "PreparedDigest.warnings":
+		if e.complexity.PreparedDigest.Warnings == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.Warnings(childComplexity), true
 
 	case "Query.ping":
 		if e.complexity.Query.Ping == nil {
@@ -263,6 +549,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputCollectInput,
 		ec.unmarshalInputMaterialInput,
+		ec.unmarshalInputPrepareDigestInput,
 	)
 	first := true
 
@@ -383,6 +670,17 @@ func (ec *executionContext) field_Mutation_collect_args(ctx context.Context, raw
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCollectInput2githubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐCollectInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_prepareDigest_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNPrepareDigestInput2githubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐPrepareDigestInput)
 	if err != nil {
 		return nil, err
 	}
@@ -976,6 +1274,635 @@ func (ec *executionContext) fieldContext_CollectResult_researchJson(_ context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _DigestContradiction_description(ctx context.Context, field graphql.CollectedField, obj *model.DigestContradiction) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestContradiction_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestContradiction_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestContradiction",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestContradiction_sourceIds(ctx context.Context, field graphql.CollectedField, obj *model.DigestContradiction) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestContradiction_sourceIds,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceIds, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestContradiction_sourceIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestContradiction",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestEvent_groupId(ctx context.Context, field graphql.CollectedField, obj *model.DigestEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestEvent_groupId,
+		func(ctx context.Context) (any, error) {
+			return obj.GroupID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestEvent_groupId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestEvent_title(ctx context.Context, field graphql.CollectedField, obj *model.DigestEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestEvent_title,
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestEvent_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestEvent_summary(ctx context.Context, field graphql.CollectedField, obj *model.DigestEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestEvent_summary,
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestEvent_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestEvent_consequences(ctx context.Context, field graphql.CollectedField, obj *model.DigestEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestEvent_consequences,
+		func(ctx context.Context) (any, error) {
+			return obj.Consequences, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestEvent_consequences(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestEvent_post(ctx context.Context, field graphql.CollectedField, obj *model.DigestEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestEvent_post,
+		func(ctx context.Context) (any, error) {
+			return obj.Post, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestEvent_post(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestEvent_reason(ctx context.Context, field graphql.CollectedField, obj *model.DigestEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestEvent_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestEvent_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestEvidence_articleId(ctx context.Context, field graphql.CollectedField, obj *model.DigestEvidence) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestEvidence_articleId,
+		func(ctx context.Context) (any, error) {
+			return obj.ArticleID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestEvidence_articleId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestEvidence",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestEvidence_quote(ctx context.Context, field graphql.CollectedField, obj *model.DigestEvidence) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestEvidence_quote,
+		func(ctx context.Context) (any, error) {
+			return obj.Quote, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestEvidence_quote(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestEvidence",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestExclusion_articleId(ctx context.Context, field graphql.CollectedField, obj *model.DigestExclusion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestExclusion_articleId,
+		func(ctx context.Context) (any, error) {
+			return obj.ArticleID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestExclusion_articleId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestExclusion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestExclusion_reason(ctx context.Context, field graphql.CollectedField, obj *model.DigestExclusion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestExclusion_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestExclusion_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestExclusion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestFact_statement(ctx context.Context, field graphql.CollectedField, obj *model.DigestFact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestFact_statement,
+		func(ctx context.Context) (any, error) {
+			return obj.Statement, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestFact_statement(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestFact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestFact_sourceIds(ctx context.Context, field graphql.CollectedField, obj *model.DigestFact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestFact_sourceIds,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceIds, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestFact_sourceIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestFact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestFact_evidence(ctx context.Context, field graphql.CollectedField, obj *model.DigestFact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestFact_evidence,
+		func(ctx context.Context) (any, error) {
+			return obj.Evidence, nil
+		},
+		nil,
+		ec.marshalNDigestEvidence2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestEvidenceᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestFact_evidence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestFact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "articleId":
+				return ec.fieldContext_DigestEvidence_articleId(ctx, field)
+			case "quote":
+				return ec.fieldContext_DigestEvidence_quote(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DigestEvidence", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestGroup_id(ctx context.Context, field graphql.CollectedField, obj *model.DigestGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestGroup_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestGroup_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestGroup_name(ctx context.Context, field graphql.CollectedField, obj *model.DigestGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestGroup_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestGroup_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestGroup_ids(ctx context.Context, field graphql.CollectedField, obj *model.DigestGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestGroup_ids,
+		func(ctx context.Context) (any, error) {
+			return obj.Ids, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestGroup_ids(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestGroup_facts(ctx context.Context, field graphql.CollectedField, obj *model.DigestGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestGroup_facts,
+		func(ctx context.Context) (any, error) {
+			return obj.Facts, nil
+		},
+		nil,
+		ec.marshalNDigestFact2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestFactᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestGroup_facts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "statement":
+				return ec.fieldContext_DigestFact_statement(ctx, field)
+			case "sourceIds":
+				return ec.fieldContext_DigestFact_sourceIds(ctx, field)
+			case "evidence":
+				return ec.fieldContext_DigestFact_evidence(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DigestFact", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestGroup_contradictions(ctx context.Context, field graphql.CollectedField, obj *model.DigestGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestGroup_contradictions,
+		func(ctx context.Context) (any, error) {
+			return obj.Contradictions, nil
+		},
+		nil,
+		ec.marshalNDigestContradiction2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestContradictionᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestGroup_contradictions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "description":
+				return ec.fieldContext_DigestContradiction_description(ctx, field)
+			case "sourceIds":
+				return ec.fieldContext_DigestContradiction_sourceIds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DigestContradiction", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DigestGroup_selectionReason(ctx context.Context, field graphql.CollectedField, obj *model.DigestGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DigestGroup_selectionReason,
+		func(ctx context.Context) (any, error) {
+			return obj.SelectionReason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DigestGroup_selectionReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DigestGroup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ExcludedArticle_id(ctx context.Context, field graphql.CollectedField, obj *model.ExcludedArticle) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1116,6 +2043,517 @@ func (ec *executionContext) fieldContext_Mutation_collect(ctx context.Context, f
 	if fc.Args, err = ec.field_Mutation_collect_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_prepareDigest(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_prepareDigest,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().PrepareDigest(ctx, fc.Args["input"].(model.PrepareDigestInput))
+		},
+		nil,
+		ec.marshalNPreparedDigest2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐPreparedDigest,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_prepareDigest(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "groups":
+				return ec.fieldContext_PreparedDigest_groups(ctx, field)
+			case "recommendedOrder":
+				return ec.fieldContext_PreparedDigest_recommendedOrder(ctx, field)
+			case "excluded":
+				return ec.fieldContext_PreparedDigest_excluded(ctx, field)
+			case "events":
+				return ec.fieldContext_PreparedDigest_events(ctx, field)
+			case "selectionSummary":
+				return ec.fieldContext_PreparedDigest_selectionSummary(ctx, field)
+			case "warnings":
+				return ec.fieldContext_PreparedDigest_warnings(ctx, field)
+			case "analysisModel":
+				return ec.fieldContext_PreparedDigest_analysisModel(ctx, field)
+			case "draftModel":
+				return ec.fieldContext_PreparedDigest_draftModel(ctx, field)
+			case "analysisPromptVersion":
+				return ec.fieldContext_PreparedDigest_analysisPromptVersion(ctx, field)
+			case "draftPromptVersion":
+				return ec.fieldContext_PreparedDigest_draftPromptVersion(ctx, field)
+			case "analysisUsageJson":
+				return ec.fieldContext_PreparedDigest_analysisUsageJson(ctx, field)
+			case "draftUsageJson":
+				return ec.fieldContext_PreparedDigest_draftUsageJson(ctx, field)
+			case "analysisDurationMs":
+				return ec.fieldContext_PreparedDigest_analysisDurationMs(ctx, field)
+			case "draftDurationMs":
+				return ec.fieldContext_PreparedDigest_draftDurationMs(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PreparedDigest", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_prepareDigest_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_groups(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_groups,
+		func(ctx context.Context) (any, error) {
+			return obj.Groups, nil
+		},
+		nil,
+		ec.marshalNDigestGroup2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestGroupᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_groups(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_DigestGroup_id(ctx, field)
+			case "name":
+				return ec.fieldContext_DigestGroup_name(ctx, field)
+			case "ids":
+				return ec.fieldContext_DigestGroup_ids(ctx, field)
+			case "facts":
+				return ec.fieldContext_DigestGroup_facts(ctx, field)
+			case "contradictions":
+				return ec.fieldContext_DigestGroup_contradictions(ctx, field)
+			case "selectionReason":
+				return ec.fieldContext_DigestGroup_selectionReason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DigestGroup", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_recommendedOrder(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_recommendedOrder,
+		func(ctx context.Context) (any, error) {
+			return obj.RecommendedOrder, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_recommendedOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_excluded(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_excluded,
+		func(ctx context.Context) (any, error) {
+			return obj.Excluded, nil
+		},
+		nil,
+		ec.marshalNDigestExclusion2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestExclusionᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_excluded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "articleId":
+				return ec.fieldContext_DigestExclusion_articleId(ctx, field)
+			case "reason":
+				return ec.fieldContext_DigestExclusion_reason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DigestExclusion", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_events(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_events,
+		func(ctx context.Context) (any, error) {
+			return obj.Events, nil
+		},
+		nil,
+		ec.marshalNDigestEvent2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestEventᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_events(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "groupId":
+				return ec.fieldContext_DigestEvent_groupId(ctx, field)
+			case "title":
+				return ec.fieldContext_DigestEvent_title(ctx, field)
+			case "summary":
+				return ec.fieldContext_DigestEvent_summary(ctx, field)
+			case "consequences":
+				return ec.fieldContext_DigestEvent_consequences(ctx, field)
+			case "post":
+				return ec.fieldContext_DigestEvent_post(ctx, field)
+			case "reason":
+				return ec.fieldContext_DigestEvent_reason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DigestEvent", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_selectionSummary(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_selectionSummary,
+		func(ctx context.Context) (any, error) {
+			return obj.SelectionSummary, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_selectionSummary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_warnings(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_warnings,
+		func(ctx context.Context) (any, error) {
+			return obj.Warnings, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_warnings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_analysisModel(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_analysisModel,
+		func(ctx context.Context) (any, error) {
+			return obj.AnalysisModel, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_analysisModel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_draftModel(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_draftModel,
+		func(ctx context.Context) (any, error) {
+			return obj.DraftModel, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_draftModel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_analysisPromptVersion(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_analysisPromptVersion,
+		func(ctx context.Context) (any, error) {
+			return obj.AnalysisPromptVersion, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_analysisPromptVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_draftPromptVersion(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_draftPromptVersion,
+		func(ctx context.Context) (any, error) {
+			return obj.DraftPromptVersion, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_draftPromptVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_analysisUsageJson(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_analysisUsageJson,
+		func(ctx context.Context) (any, error) {
+			return obj.AnalysisUsageJSON, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_analysisUsageJson(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_draftUsageJson(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_draftUsageJson,
+		func(ctx context.Context) (any, error) {
+			return obj.DraftUsageJSON, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_draftUsageJson(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_analysisDurationMs(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_analysisDurationMs,
+		func(ctx context.Context) (any, error) {
+			return obj.AnalysisDurationMs, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_analysisDurationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_draftDurationMs(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_draftDurationMs,
+		func(ctx context.Context) (any, error) {
+			return obj.DraftDurationMs, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_draftDurationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
 	}
 	return fc, nil
 }
@@ -2827,6 +4265,40 @@ func (ec *executionContext) unmarshalInputMaterialInput(ctx context.Context, obj
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputPrepareDigestInput(ctx context.Context, obj any) (model.PrepareDigestInput, error) {
+	var it model.PrepareDigestInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"controlTime", "items"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "controlTime":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("controlTime"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ControlTime = data
+		case "items":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("items"))
+			data, err := ec.unmarshalNMaterialInput2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐMaterialInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Items = data
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -2964,6 +4436,315 @@ func (ec *executionContext) _CollectResult(ctx context.Context, sel ast.Selectio
 	return out
 }
 
+var digestContradictionImplementors = []string{"DigestContradiction"}
+
+func (ec *executionContext) _DigestContradiction(ctx context.Context, sel ast.SelectionSet, obj *model.DigestContradiction) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, digestContradictionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DigestContradiction")
+		case "description":
+			out.Values[i] = ec._DigestContradiction_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceIds":
+			out.Values[i] = ec._DigestContradiction_sourceIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var digestEventImplementors = []string{"DigestEvent"}
+
+func (ec *executionContext) _DigestEvent(ctx context.Context, sel ast.SelectionSet, obj *model.DigestEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, digestEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DigestEvent")
+		case "groupId":
+			out.Values[i] = ec._DigestEvent_groupId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "title":
+			out.Values[i] = ec._DigestEvent_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._DigestEvent_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "consequences":
+			out.Values[i] = ec._DigestEvent_consequences(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "post":
+			out.Values[i] = ec._DigestEvent_post(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._DigestEvent_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var digestEvidenceImplementors = []string{"DigestEvidence"}
+
+func (ec *executionContext) _DigestEvidence(ctx context.Context, sel ast.SelectionSet, obj *model.DigestEvidence) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, digestEvidenceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DigestEvidence")
+		case "articleId":
+			out.Values[i] = ec._DigestEvidence_articleId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "quote":
+			out.Values[i] = ec._DigestEvidence_quote(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var digestExclusionImplementors = []string{"DigestExclusion"}
+
+func (ec *executionContext) _DigestExclusion(ctx context.Context, sel ast.SelectionSet, obj *model.DigestExclusion) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, digestExclusionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DigestExclusion")
+		case "articleId":
+			out.Values[i] = ec._DigestExclusion_articleId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._DigestExclusion_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var digestFactImplementors = []string{"DigestFact"}
+
+func (ec *executionContext) _DigestFact(ctx context.Context, sel ast.SelectionSet, obj *model.DigestFact) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, digestFactImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DigestFact")
+		case "statement":
+			out.Values[i] = ec._DigestFact_statement(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceIds":
+			out.Values[i] = ec._DigestFact_sourceIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "evidence":
+			out.Values[i] = ec._DigestFact_evidence(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var digestGroupImplementors = []string{"DigestGroup"}
+
+func (ec *executionContext) _DigestGroup(ctx context.Context, sel ast.SelectionSet, obj *model.DigestGroup) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, digestGroupImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DigestGroup")
+		case "id":
+			out.Values[i] = ec._DigestGroup_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._DigestGroup_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ids":
+			out.Values[i] = ec._DigestGroup_ids(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "facts":
+			out.Values[i] = ec._DigestGroup_facts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "contradictions":
+			out.Values[i] = ec._DigestGroup_contradictions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "selectionReason":
+			out.Values[i] = ec._DigestGroup_selectionReason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var excludedArticleImplementors = []string{"ExcludedArticle"}
 
 func (ec *executionContext) _ExcludedArticle(ctx context.Context, sel ast.SelectionSet, obj *model.ExcludedArticle) graphql.Marshaler {
@@ -3036,6 +4817,111 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_collect(ctx, field)
 			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "prepareDigest":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_prepareDigest(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var preparedDigestImplementors = []string{"PreparedDigest"}
+
+func (ec *executionContext) _PreparedDigest(ctx context.Context, sel ast.SelectionSet, obj *model.PreparedDigest) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, preparedDigestImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PreparedDigest")
+		case "groups":
+			out.Values[i] = ec._PreparedDigest_groups(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recommendedOrder":
+			out.Values[i] = ec._PreparedDigest_recommendedOrder(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "excluded":
+			out.Values[i] = ec._PreparedDigest_excluded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "events":
+			out.Values[i] = ec._PreparedDigest_events(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "selectionSummary":
+			out.Values[i] = ec._PreparedDigest_selectionSummary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "warnings":
+			out.Values[i] = ec._PreparedDigest_warnings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "analysisModel":
+			out.Values[i] = ec._PreparedDigest_analysisModel(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "draftModel":
+			out.Values[i] = ec._PreparedDigest_draftModel(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "analysisPromptVersion":
+			out.Values[i] = ec._PreparedDigest_analysisPromptVersion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "draftPromptVersion":
+			out.Values[i] = ec._PreparedDigest_draftPromptVersion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "analysisUsageJson":
+			out.Values[i] = ec._PreparedDigest_analysisUsageJson(ctx, field, obj)
+		case "draftUsageJson":
+			out.Values[i] = ec._PreparedDigest_draftUsageJson(ctx, field, obj)
+		case "analysisDurationMs":
+			out.Values[i] = ec._PreparedDigest_analysisDurationMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "draftDurationMs":
+			out.Values[i] = ec._PreparedDigest_draftDurationMs(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -3558,6 +5444,330 @@ func (ec *executionContext) marshalNCollectResult2ᚖgithubᚗcomᚋKnigorᚋnot
 	return ec._CollectResult(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNDigestContradiction2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestContradictionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DigestContradiction) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNDigestContradiction2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestContradiction(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDigestContradiction2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestContradiction(ctx context.Context, sel ast.SelectionSet, v *model.DigestContradiction) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DigestContradiction(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDigestEvent2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestEventᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DigestEvent) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNDigestEvent2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestEvent(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDigestEvent2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestEvent(ctx context.Context, sel ast.SelectionSet, v *model.DigestEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DigestEvent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDigestEvidence2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestEvidenceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DigestEvidence) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNDigestEvidence2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestEvidence(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDigestEvidence2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestEvidence(ctx context.Context, sel ast.SelectionSet, v *model.DigestEvidence) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DigestEvidence(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDigestExclusion2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestExclusionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DigestExclusion) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNDigestExclusion2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestExclusion(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDigestExclusion2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestExclusion(ctx context.Context, sel ast.SelectionSet, v *model.DigestExclusion) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DigestExclusion(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDigestFact2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestFactᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DigestFact) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNDigestFact2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestFact(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDigestFact2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestFact(ctx context.Context, sel ast.SelectionSet, v *model.DigestFact) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DigestFact(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDigestGroup2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DigestGroup) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNDigestGroup2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestGroup(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDigestGroup2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐDigestGroup(ctx context.Context, sel ast.SelectionSet, v *model.DigestGroup) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DigestGroup(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNExcludedArticle2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐExcludedArticleᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ExcludedArticle) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -3654,9 +5864,43 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
+func (ec *executionContext) unmarshalNMaterialInput2ᚕᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐMaterialInputᚄ(ctx context.Context, v any) ([]*model.MaterialInput, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*model.MaterialInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNMaterialInput2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐMaterialInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
 func (ec *executionContext) unmarshalNMaterialInput2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐMaterialInput(ctx context.Context, v any) (*model.MaterialInput, error) {
 	res, err := ec.unmarshalInputMaterialInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNPrepareDigestInput2githubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐPrepareDigestInput(ctx context.Context, v any) (model.PrepareDigestInput, error) {
+	res, err := ec.unmarshalInputPrepareDigestInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPreparedDigest2githubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐPreparedDigest(ctx context.Context, sel ast.SelectionSet, v model.PreparedDigest) graphql.Marshaler {
+	return ec._PreparedDigest(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPreparedDigest2ᚖgithubᚗcomᚋKnigorᚋnotFive_backendᚋservicesᚋdigestᚋgraphᚋmodelᚐPreparedDigest(ctx context.Context, sel ast.SelectionSet, v *model.PreparedDigest) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PreparedDigest(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {

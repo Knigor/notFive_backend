@@ -3,7 +3,7 @@
   "info": {
     "title": "notFive News Pipeline API",
     "version": "12",
-    "description": "Go API: /v1/pipeline/web собирает статьи с переданных sites и формирует файлы; /v1/pipeline/news принимает news.json и выполняет отбор, анализ и экспорт без поиска. Старый /v1/pipeline удалён. Отдельные collect/analyze/export сохранены. Запросы синхронные, неидемпотентные, с Bearer-токеном."
+    "description": "Go API: /v1/pipeline/web собирает статьи с переданных sites; /v1/pipeline/news принимает нормализованный news.json без поиска. Анализ и подготовка текста возвращают структуру; четыре итоговых файла формирует Symfony. Отдельные collect/analyze/export сохранены. Запросы синхронные, неидемпотентные, с Bearer-токеном."
   },
   "servers": [
     {
@@ -478,8 +478,8 @@
     "/v1/export": {
       "post": {
         "operationId": "exportDigestFiles",
-        "summary": "Создать дайджест, пост, предпросмотр письма и журнал из анализа и исходных новостей",
-        "description": "Принимает {analysis,news} до 1 MiB. Набор и период двух документов должны совпадать. Сохраняет выбранные группы и их порядок из recommended_order; URL, ID, даты и источники берёт из news. Alice пишет тексты без веб-поиска со строгой JSON Schema; код форматирует четыре файла и формирует одну строку журнала на входной материал. Пустой выбор обрабатывается без модели. Проблемы содержания/длины возвращаются в warnings; ошибочная привязка источника не исправляется заменой ID. Повторный POST создаёт новый запуск и может расходовать токены. Файлы содержат русский выпуск; Accept-Language переводит только служебные сообщения. Содержательную прозу пишет только Alice. Отсутствие обязательного текста или нарушенная структура дают ошибку без ручных текстовых замен и автоматической смены модели.",
+        "summary": "Подготовить тексты выбранных событий по анализу и исходным новостям",
+        "description": "Принимает {analysis,news} до 1 MiB. Набор и период двух документов должны совпадать. Сохраняет выбранные группы и их порядок из recommended_order; URL, ID, даты и источники берёт из news. Alice пишет тексты без веб-поиска со строгой JSON Schema; ответ содержит структурированные тексты выбранных событий. Четыре файла формирует Symfony. Пустой выбор обрабатывается без модели. Проблемы содержания/длины возвращаются в warnings; ошибочная привязка источника не исправляется заменой ID. Повторный POST создаёт новый запуск и может расходовать токены. Тексты содержат русский выпуск; Accept-Language переводит только служебные сообщения. Содержательную прозу пишет только Alice. Отсутствие обязательного текста или нарушенная структура дают ошибку без ручных текстовых замен и автоматической смены модели.",
         "requestBody": {
           "required": true,
           "content": {
@@ -492,7 +492,7 @@
         },
         "responses": {
           "201": {
-            "description": "Четыре файла сформированы и сохранены. Строки files готовы к сохранению на стороне клиента; полный аудит доступен по Location.",
+            "description": "Структурированный анализ и тексты событий сохранены в аудите Go; готовые файлы формирует Symfony.",
             "headers": {
               "Location": {
                 "description": "Путь GET для сохранённого запуска",
@@ -664,7 +664,7 @@
     "/v1/pipeline/web": {
       "post": {
         "operationId": "runWebPipeline",
-        "summary": "Сбор с sites, анализ и четыре файла",
+        "summary": "Сбор с sites, анализ и структурированный результат",
         "description": "Вход control_time/sites, до 1 MiB. query не принимается из тела (HTTP 400), поисковый запрос фиксирован на сервере в pipelineSearchQuery: «Найди свежие новости кибербезопасности за заданные 24 часа, важные для российских организаций: новые уязвимости, инциденты, утечки и защитные меры. Не включай прогнозы, годовые отчёты и вечнозелёные обзоры. Укажи даты, источники, последствия и оговорки. Если подходящих публикаций нет, прямо сообщи об этом и ничего не выдумывай.» sites: массив 1..5 публичных доменов или HTTPS URL; раздел задаёт HTML-источник ссылок, поиск ограничен доменом. Настройки изолированы между запросами. Один слот, до 3 x REQUEST_TIMEOUT (540 секунд по умолчанию). При ошибке следующие этапы остановлены, частичный аудит доступен по run_id. Повторный POST запускает новый цикл.",
         "requestBody": {
           "required": true,
@@ -678,7 +678,7 @@
         },
         "responses": {
           "201": {
-            "description": "Полный цикл завершён и сохранён; новости, анализ, четыре файла и предупреждения.",
+            "description": "Структурированный анализ и тексты событий сохранены в аудите Go; готовые файлы формирует Symfony.",
             "headers": {
               "Location": {
                 "description": "Путь GET для сохранённого запуска",
@@ -850,7 +850,7 @@
     "/v1/pipeline/news": {
       "post": {
         "operationId": "runDatasetPipeline",
-        "summary": "Отбор из news.json, анализ и четыре файла",
+        "summary": "Отбор из news.json, анализ и структурированный результат",
         "description": "Сам news.json в теле application/json, без обёртки и multipart. Поиск, RSS/HTML и загрузка URL не выполняются. T берётся из файла; даты фильтруются строго в (T-24h,T]. Исходные items остаются в news и журнале, metadata времени нормализуется в Москву. Нет лимита 12 статей; тело до 1 MiB, тексты допущенных статей до 120000 символов. Один слот, до 2 x REQUEST_TIMEOUT (360 секунд). Анализ и экспорт пустого набора не вызывают модель. Аудит source=news без collection/research. Повторный POST повторяет анализ и генерацию.",
         "requestBody": {
           "required": true,
@@ -864,7 +864,7 @@
         },
         "responses": {
           "201": {
-            "description": "Полный цикл завершён и сохранён; новости, анализ, четыре файла и предупреждения.",
+            "description": "Структурированный анализ и тексты событий сохранены в аудите Go; готовые файлы формирует Symfony.",
             "headers": {
               "Location": {
                 "description": "Путь GET для сохранённого запуска",
@@ -1991,44 +1991,28 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "files",
+          "selection_summary",
+          "events",
           "warnings"
         ],
         "properties": {
-          "files": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "digest.md",
-              "post.md",
-              "email.md",
-              "journal.csv"
-            ],
-            "properties": {
-              "digest.md": {
-                "type": "string",
-                "description": "Русский дайджест в Markdown, до пяти выбранных событий."
-              },
-              "post.md": {
-                "type": "string",
-                "description": "Русский пост в Markdown, те же события и порядок."
-              },
-              "email.md": {
-                "type": "string",
-                "description": "Предпросмотр письма: тема, период и полный текст дайджеста. Ничего не отправляется."
-              },
-              "journal.csv": {
-                "type": "string",
-                "description": "CSV UTF-8 с разделителем ; и колонками id;status;group;reason;error. Одна строка на входной материал."
-              }
-            }
+          "selection_summary": {
+            "type": "string",
+            "description": "Объяснение отбора событий."
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DigestEventText"
+            },
+            "description": "Тексты выбранных событий в порядке recommended_order."
           },
           "warnings": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Исходные предупреждения анализа и замечания экспорта. Проблемы длины и содержания не блокируют выдачу."
+            "description": "Предупреждения анализа и подготовки текста."
           }
         }
       },
@@ -2069,7 +2053,7 @@
           "status",
           "news",
           "analysis",
-          "files",
+          "draft",
           "warnings"
         ],
         "properties": {
@@ -2089,40 +2073,15 @@
           "analysis": {
             "$ref": "#/components/schemas/AnalysisResult"
           },
-          "files": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "digest.md",
-              "post.md",
-              "email.md",
-              "journal.csv"
-            ],
-            "properties": {
-              "digest.md": {
-                "type": "string",
-                "description": "Русский дайджест в Markdown, до пяти выбранных событий."
-              },
-              "post.md": {
-                "type": "string",
-                "description": "Русский пост в Markdown, те же события и порядок."
-              },
-              "email.md": {
-                "type": "string",
-                "description": "Предпросмотр письма: тема, период и полный текст дайджеста. Ничего не отправляется."
-              },
-              "journal.csv": {
-                "type": "string",
-                "description": "CSV UTF-8 с разделителем ; и колонками id;status;group;reason;error. Одна строка на входной материал."
-              }
-            }
-          },
           "warnings": {
             "type": "array",
             "items": {
               "type": "string"
             },
             "description": "Предупреждения сбора, анализа и экспорта без повторяющихся строк. Статьи и русский выпуск не переводятся."
+          },
+          "draft": {
+            "$ref": "#/components/schemas/ExportResult"
           }
         }
       },
@@ -2406,6 +2365,38 @@
               "$ref": "#/components/schemas/PipelineNewsArticle"
             },
             "description": "Все материалы, включая впоследствии исключённые. Пустой массив допустим."
+          }
+        }
+      },
+      "DigestEventText": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "group_id",
+          "title",
+          "summary",
+          "consequences",
+          "post",
+          "reason"
+        ],
+        "properties": {
+          "group_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "consequences": {
+            "type": "string"
+          },
+          "post": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       }
