@@ -67,6 +67,7 @@ class WorkerTests(unittest.TestCase):
                 supervisor.image = data["image"]
                 supervisor.env_path = path
                 command = supervisor.docker_command(["bin/console", "messenger:consume", "email"])
+                self.assertIn("--no-healthcheck", command)
                 for key in ("APP_SECRET", "POSTGRES_PASSWORD"):
                     self.assertNotIn(data["environment"][key], " ".join(command))
                 supervisor.close()

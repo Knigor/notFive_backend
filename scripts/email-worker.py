@@ -324,7 +324,7 @@ class Supervisor:
 
     def docker_command(self, command):
         return [
-            "docker", "run", "--rm", "--platform", "linux/amd64", "--stop-signal", "SIGTERM", "--name", CONTAINER,
+            "docker", "run", "--rm", "--no-healthcheck", "--platform", "linux/amd64", "--stop-signal", "SIGTERM", "--name", CONTAINER,
             "--label", f"{SESSION_LABEL}={self.session}", "--env-file", str(self.env_path),
             *(["--network", "host"] if sys.platform.startswith("linux") else []), "--entrypoint", "php",
             self.image, "-d", "zend.exception_ignore_args=1", "-d", "display_errors=0",
