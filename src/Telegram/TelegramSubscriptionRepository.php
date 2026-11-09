@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Telegram;
 
+use App\Digest\DeliveryRepository;
 use Doctrine\DBAL\Connection;
 
 final readonly class TelegramSubscriptionRepository
 {
-    public function __construct(private Connection $connection)
+    public function __construct(private Connection $connection, private DeliveryRepository $deliveries)
     {
     }
 
@@ -33,10 +34,15 @@ final readonly class TelegramSubscriptionRepository
 
     public function pause(string $chatId): void
     {
-        $this->connection->executeStatement(<<<'SQL'
-            UPDATE delivery_targets SET status = 'unsubscribed'
-            WHERE channel = 'telegram' AND destination = :chat_id
-            SQL, ['chat_id' => $chatId]);
+        $this->connection->transactional(function () use ($chatId): void {
+            $targetId = $this->connection->fetchOne(<<<'SQL'
+                UPDATE delivery_targets SET status = 'unsubscribed'
+                WHERE channel = 'telegram' AND destination = :chat_id RETURNING id
+                SQL, ['chat_id' => $chatId]);
+            if (is_string($targetId)) {
+                $this->deliveries->cancelPending($targetId);
+            }
+        });
     }
 
     public function setLocale(string $chatId, string $locale): void
@@ -66,21 +72,5 @@ final readonly class TelegramSubscriptionRepository
         }
 
         return ['status' => (string) $row['status'], 'locale' => (string) $row['locale']];
-    }
-
-    /** @return list<array{ id: string, destination: string, locale: string }> */
-    public function activeTargets(): array
-    {
-        $rows = $this->connection->fetchAllAssociative(<<<'SQL'
-            SELECT id, destination, locale FROM delivery_targets
-            WHERE channel = 'telegram' AND status = 'active'
-            ORDER BY id
-            SQL);
-
-        return array_map(static fn (array $row): array => [
-            'id' => (string) $row['id'],
-            'destination' => (string) $row['destination'],
-            'locale' => (string) $row['locale'],
-        ], $rows);
     }
 }

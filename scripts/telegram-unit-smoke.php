@@ -51,6 +51,14 @@ assert('success' === ($messages->homeButtons('ru', 'inactive')[0][0]['style'] ??
 assert('primary' === ($messages->homeButtons('ru', 'inactive')[1][0]['style'] ?? null));
 assert('danger' === ($messages->homeButtons('ru', 'active')[1][0]['style'] ?? null));
 assert('success' === ($messages->settingsButtons('en', 'active')[0][1]['style'] ?? null));
+assert('🔔 Включить рассылку' === $messages->homeButtons('ru', 'inactive')[1][0]['text']);
+assert('🔕 Отключить рассылку' === $messages->homeButtons('ru', 'active')[1][0]['text']);
+assert('🔔 Включить рассылку' === $messages->settingsButtons('ru', 'inactive')[1][0]['text']);
+assert('🔕 Отключить рассылку' === $messages->settingsButtons('ru', 'active')[1][0]['text']);
+assert('🔔 Turn on updates' === $messages->homeButtons('en', 'inactive')[1][0]['text']);
+assert('🔕 Turn off updates' === $messages->homeButtons('en', 'active')[1][0]['text']);
+assert('🔔 Turn on updates' === $messages->settingsButtons('en', 'inactive')[1][0]['text']);
+assert('🔕 Turn off updates' === $messages->settingsButtons('en', 'active')[1][0]['text']);
 assert(grapheme_strlen($messages->profileDescription('ru')) <= 512);
 assert(grapheme_strlen($messages->profileShortDescription('en')) <= 120);
 

@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
+use App\Digest\DeliveryRepository;
 use Doctrine\DBAL\Connection;
 
 final readonly class EmailSubscriptionRepository
 {
-    public function __construct(private Connection $connection)
+    public function __construct(private Connection $connection, private DeliveryRepository $deliveries)
     {
     }
 
@@ -137,10 +138,7 @@ final readonly class EmailSubscriptionRepository
                     email_confirmation_expires_at = NULL, email_confirmation_sent_at = NULL
                 WHERE id = :id
                 SQL, ['id' => $id]);
-            $this->connection->executeStatement(<<<'SQL'
-                UPDATE deliveries SET status = 'cancelled', last_error = NULL
-                WHERE target_id = :id AND status IN ('queued', 'failed')
-                SQL, ['id' => $id]);
+            $this->deliveries->cancelPending($id);
 
             return true;
         });

@@ -401,7 +401,7 @@ class NewsletterSmoke:
             )
             failed_deliveries = self.rows(
                 "SELECT d.status, d.attempts, d.last_error FROM deliveries d "
-                "JOIN artifacts a ON a.id = d.artifact_id WHERE a.run_id = " + quote(first)
+                "JOIN artifacts a ON a.id = d.artifact_id WHERE a.kind = 'email_preview' AND a.run_id = " + quote(first)
             )
             require(
                 len(failed_deliveries) == 2 and all(
@@ -423,7 +423,7 @@ class NewsletterSmoke:
         deliveries = self.rows(
             "SELECT d.status, d.attempts, d.last_error, t.destination, t.channel FROM deliveries d "
             "JOIN delivery_targets t ON t.id = d.target_id "
-            "JOIN artifacts a ON a.id = d.artifact_id WHERE a.run_id = " + quote(first)
+            "JOIN artifacts a ON a.id = d.artifact_id WHERE a.kind = 'email_preview' AND a.run_id = " + quote(first)
         )
         require(len(deliveries) == 2 and all(row["status"] == "sent" and row["channel"] == "email" for row in deliveries), "Publication included an ineligible target")
         require(
