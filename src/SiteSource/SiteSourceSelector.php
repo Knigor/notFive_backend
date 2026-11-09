@@ -25,7 +25,7 @@ final readonly class SiteSourceSelector
             }
         }
 
-        $sources = $this->repository->readyByIds($ids);
+        $sources = $this->repository->availableByIds($ids);
 
         if (count($sources) !== count($ids)) {
             throw new \InvalidArgumentException('invalid_sources');
