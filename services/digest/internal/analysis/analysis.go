@@ -22,7 +22,7 @@ var (
 	ErrInvalidModelOutput = errors.New("invalid_model_output")
 )
 
-const MaxTextCharacters = 230000
+const MaxTextCharacters = 144000
 
 // Prepare validates the envelope and excludes articles with an unusable date or
 // text. Whole articles are admitted in input order within the text budget;

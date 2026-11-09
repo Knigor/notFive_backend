@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -70,7 +71,7 @@ func TestCollectionUsesCitationArticlesAndReplenishesAfterDateRejection(t *testi
 	}
 }
 
-func TestCollectionFetchesEveryCandidateWithoutAFixedCountLimit(t *testing.T) {
+func TestCollectionStopsAfterTwentyFourAttemptsAndAuditsRemainingCandidates(t *testing.T) {
 	candidates := []searchCandidate{}
 	for i := range 40 {
 		candidates = append(candidates, searchCandidate{URL: fmt.Sprintf("https://itweek.ru/security/article/detail.php?ID=%d", i)})
@@ -81,13 +82,17 @@ func TestCollectionFetchesEveryCandidateWithoutAFixedCountLimit(t *testing.T) {
 	})
 	_, cfg := newServer(t, provider)
 	cfg.SearchDomains = []string{"itweek.ru"}
-	cfg.SourceFetcher = researchFetchFunc(func(context.Context, string) (news.Article, error) { return news.Article{}, news.ErrUnavailable })
+	var fetched atomic.Int32
+	cfg.SourceFetcher = researchFetchFunc(func(context.Context, string) (news.Article, error) {
+		fetched.Add(1)
+		return news.Article{}, news.ErrUnavailable
+	})
 	server, err := New(cfg, provider)
 	if err != nil {
 		t.Fatal(err)
 	}
 	run, err := server.collectRun(t.Context(), researchRequest{ControlTime: "2026-11-09T09:09:00+03:00", Query: "news"}, cfg.SearchDomains)
-	if err != nil || run.Collection.Counts.Accepted != 0 || len(run.Collection.ExcludedArticles) != 40 || len(run.Research.ExcludedSources) != 40 {
+	if err != nil || fetched.Load() != 24 || run.Collection.Counts.Accepted != 0 || len(run.Collection.ExcludedArticles) != 40 || len(run.Research.ExcludedSources) != 24 {
 		t.Fatalf("incomplete fetches: %+v %v", run.Collection, err)
 	}
 	unprocessed := 0
@@ -96,8 +101,8 @@ func TestCollectionFetchesEveryCandidateWithoutAFixedCountLimit(t *testing.T) {
 			unprocessed++
 		}
 	}
-	if unprocessed != 0 || len(newsDataset(run.Collection, "ru").Items) != 40 {
-		t.Fatalf("unexpected count-based omissions: %d", unprocessed)
+	if unprocessed != 16 || len(newsDataset(run.Collection, "ru").Items) != 40 {
+		t.Fatalf("unfetched candidates lost their limit audit: %d", unprocessed)
 	}
 }
 
@@ -163,7 +168,7 @@ func TestCollectionRefinementPrecedesStaleDiscoveryRemainder(t *testing.T) {
 	if err != nil || calls != 2 || len(run.Collection.Articles) != 1 || run.Collection.Articles[0].URL != fresh {
 		t.Fatalf("fresh refinement crowded out: %+v calls=%d err=%v", run.Collection, calls, err)
 	}
-	if len(run.Research.Sources)+len(run.Research.ExcludedSources) != 26 || len(run.Collection.ExcludedArticles) != 25 {
+	if len(run.Research.Sources)+len(run.Research.ExcludedSources) != 24 || len(run.Collection.ExcludedArticles) != 25 {
 		t.Fatalf("incomplete candidate audit: %+v", run.Collection.Counts)
 	}
 }
@@ -199,7 +204,7 @@ func TestCollectionCancellationIsNotReportedAsCandidateLimit(t *testing.T) {
 			}
 		}
 	}
-	if remaining != 16 {
+	if remaining != 8 || run.Collection == nil || run.Collection.Counts.Candidates != 20 {
 		t.Fatalf("pending candidates lost: %d", remaining)
 	}
 }

@@ -72,7 +72,16 @@ func TestResearchHTMLListingsCannotCrowdOutFreshFeedsOrWebSearch(t *testing.T) {
 	want = append(want, unknown, model,
 		"https://ptsecurity.com/about/news/article-0", "https://www.kaspersky.ru/about/press-releases/article-0",
 		"https://ptsecurity.com/about/news/article-1", "https://www.kaspersky.ru/about/press-releases/article-1")
-	if len(got) != 128 || !slices.Equal(got[:min(len(got), len(want))], want) {
+	if !slices.Equal(got, want) {
 		t.Fatalf("HTML listings consumed higher-priority article slots: got %v, want %v", got, want)
+	}
+	unprocessed := 0
+	for _, candidate := range run.Research.CandidateAudit {
+		if candidate.Status == "not_processed" && candidate.Error == "fetch_limit" && candidate.Reason != "" {
+			unprocessed++
+		}
+	}
+	if unprocessed != 116 {
+		t.Fatalf("remaining HTML candidates disappeared from the audit: %d", unprocessed)
 	}
 }

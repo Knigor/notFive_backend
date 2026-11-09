@@ -137,7 +137,7 @@ func (s *Server) discoverResearchSources(ctx context.Context, research *Research
 	research.Discovery = attempts
 	for _, attempt := range attempts {
 		if attempt.UninspectedLinks > 0 {
-			research.Warnings = append(research.Warnings, fmt.Sprintf("В %s осталось %d непросмотренных ссылок: просмотр был прерван. Повторяющиеся ссылки учитываются отдельно.", attempt.URL, attempt.UninspectedLinks))
+			research.Warnings = append(research.Warnings, fmt.Sprintf("В %s осталось %d непросмотренных ссылок: бюджет просмотра — 300 адресов на раздел или ленту; таймаут также может прервать просмотр. Повторяющиеся ссылки учитываются отдельно.", attempt.URL, attempt.UninspectedLinks))
 		}
 		if attempt.Error != "" {
 			research.recordCandidate(canonicalCandidateURL(attempt.URL), "discovery", "excluded", attempt.Error, attempt.ErrorCode)
@@ -176,6 +176,8 @@ func discoveryErrorReason(code string) string {
 		return "Ссылка ведёт на главную страницу или раздел, а не публикацию."
 	case "untrusted_url":
 		return "Ссылка вне разрешённых публичных HTTPS-источников; не загружалась."
+	case "discovery_limit":
+		return "Превышен лимит 60 ссылок из одного раздела или ленты; публикация не загружалась."
 	case "not_article_path":
 		return "Адрес не соответствует публикациям этого источника; не загружался."
 	default:

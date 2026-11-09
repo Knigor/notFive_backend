@@ -143,7 +143,7 @@ func TestGraphQLPrepareDigestPreservesBudgetExclusionsAndAudit(t *testing.T) {
 			gql.AddTransport(transport.POST{})
 			server.MountGraphQL(gql)
 			items := []*model.MaterialInput{{
-				ID: "oversized", Title: new("Большая публикация"), Text: new(strings.Repeat("я", 230001)),
+				ID: "oversized", Title: new("Большая публикация"), Text: new(strings.Repeat("я", 144001)),
 				Source: new("Test source"), URL: new("https://securitylab.ru/news/large.php"),
 				PublishedAt: new("2026-11-08T10:00:00Z"), Missing: []string{},
 			}}
@@ -169,7 +169,7 @@ func TestGraphQLPrepareDigestPreservesBudgetExclusionsAndAudit(t *testing.T) {
 				t.Fatalf("budget overflow failed the whole GraphQL request: %d %s", response.Code, response.Body.String())
 			}
 			prepared := result.Data.PrepareDigest
-			if len(prepared.Excluded) != 1 || prepared.Excluded[0].ArticleID != "oversized" || !strings.Contains(prepared.Excluded[0].Reason, "230000") || !strings.Contains(prepared.Excluded[0].Reason, "бюджет") {
+			if len(prepared.Excluded) != 1 || prepared.Excluded[0].ArticleID != "oversized" || !strings.Contains(prepared.Excluded[0].Reason, "144000") || !strings.Contains(prepared.Excluded[0].Reason, "бюджет") {
 				t.Fatalf("GraphQL lost the budget exclusion: %+v", prepared.Excluded)
 			}
 			if !strings.Contains(strings.Join(prepared.Warnings, "\n"), "oversized") {
@@ -190,7 +190,7 @@ func TestGraphQLPrepareDigestPreservesBudgetExclusionsAndAudit(t *testing.T) {
 			if json.Unmarshal(raw, &audit) != nil || audit.Status != "completed" || audit.Analysis == nil || audit.Analysis.Result == nil || audit.Export == nil || audit.Export.ValidatedAnalysis == nil {
 				t.Fatal("completed budget-limited request lacks analysis/export audit")
 			}
-			if !strings.Contains(audit.Analysis.Result.Excluded["oversized"], "230000") || audit.Export.ValidatedAnalysis.Excluded["oversized"] != prepared.Excluded[0].Reason {
+			if !strings.Contains(audit.Analysis.Result.Excluded["oversized"], "144000") || audit.Export.ValidatedAnalysis.Excluded["oversized"] != prepared.Excluded[0].Reason {
 				t.Fatal("analysis, export and GraphQL audit disagree about the excluded material")
 			}
 		})

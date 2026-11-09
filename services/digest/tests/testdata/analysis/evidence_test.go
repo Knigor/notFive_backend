@@ -33,10 +33,10 @@ func TestMatchQuoteRestoresSourceTypographyWithoutFuzzyMatching(t *testing.T) {
 	}
 }
 
-func TestPrepareAcceptsExactly230000UnicodeCharactersWithoutTruncation(t *testing.T) {
+func TestPrepareAcceptsExactly144000UnicodeCharactersWithoutTruncation(t *testing.T) {
 	dataset := Dataset{Dataset: "test", ControlTime: "2026-11-09T09:00:00+03:00", Items: []Item{
-		{ID: "A", Text: new(strings.Repeat("я", 115001)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
-		{ID: "B", Text: new(strings.Repeat("ё", 114999)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
+		{ID: "A", Text: new(strings.Repeat("я", 72001)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
+		{ID: "B", Text: new(strings.Repeat("ё", 71999)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
 	}}
 	prepared, err := Prepare(dataset)
 	if err != nil || len(prepared.Dataset.Items) != 2 || len(prepared.Excluded) != 0 {
@@ -49,15 +49,15 @@ func TestPrepareAcceptsExactly230000UnicodeCharactersWithoutTruncation(t *testin
 		}
 		characters += utf8.RuneCountInString(*item.Text)
 	}
-	if characters != 230000 {
+	if characters != 144000 {
 		t.Fatalf("wrong Unicode character total: %d", characters)
 	}
 }
 
 func TestPrepareSkipsWholeOversizedArticlesAndContinuesWithinRemainingBudget(t *testing.T) {
 	dataset := Dataset{Dataset: "test", ControlTime: "2026-11-09T09:00:00+03:00", Items: []Item{
-		{ID: "too-large", Text: new(strings.Repeat("я", 230001)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
-		{ID: "accepted", Text: new(strings.Repeat("ё", 229999)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
+		{ID: "too-large", Text: new(strings.Repeat("я", 144001)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
+		{ID: "accepted", Text: new(strings.Repeat("ё", 143999)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
 		{ID: "remaining-overflow", Text: new("аб"), PublishedAt: new("2026-11-09T08:00:00+03:00")},
 		{ID: "last-fits", Text: new("ю"), PublishedAt: new("2026-11-09T08:00:00+03:00")},
 	}}
@@ -85,7 +85,7 @@ func TestAnalyzeAllBudgetExclusionsReturnsReasonsWithoutCallingModel(t *testing.
 	for _, locale := range []string{"ru", "en"} {
 		t.Run(locale, func(t *testing.T) {
 			prepared, err := Prepare(Dataset{Dataset: "test", ControlTime: "2026-11-09T09:00:00+03:00", Items: []Item{
-				{ID: "large", Text: new(strings.Repeat("я", 230001)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
+				{ID: "large", Text: new(strings.Repeat("я", 144001)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
 			}})
 			if err != nil {
 				t.Fatal(err)
@@ -99,7 +99,7 @@ func TestAnalyzeAllBudgetExclusionsReturnsReasonsWithoutCallingModel(t *testing.
 				t.Fatalf("empty-budget result failed: %v %+v", err, result)
 			}
 			word := map[string]string{"ru": "бюджет", "en": "budget"}[locale]
-			if !strings.Contains(result.Excluded["large"], "230000") || !strings.Contains(result.Excluded["large"], word) || !strings.Contains(strings.Join(result.Warnings, "\n"), "large") {
+			if !strings.Contains(result.Excluded["large"], "144000") || !strings.Contains(result.Excluded["large"], word) || !strings.Contains(strings.Join(result.Warnings, "\n"), "large") {
 				t.Fatalf("localized budget reason or warning missing: %+v", result)
 			}
 		})

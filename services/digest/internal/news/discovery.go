@@ -19,6 +19,9 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
+const maxDiscoveredLinks = 60
+const maxDiscoveryInspectedLinks = 300
+
 // DiscoveredLink is a candidate, not a verified article. Feed publication dates
 // are only discovery hints; Fetch must independently check the source page.
 type DiscoveredLink struct {
@@ -102,6 +105,7 @@ func (c *Client) DiscoverDetailed(ctx context.Context, rawURL string) (Discovery
 		return DiscoveryResult{}, ErrUnavailable
 	}
 	var links []DiscoveredLink
+	uninspectedLinks := 0
 	if mediaType == "text/html" || mediaType == "application/xhtml+xml" {
 		reader, err := charset.NewReader(bytes.NewReader(body), contentType)
 		if err != nil {
@@ -112,8 +116,15 @@ func (c *Client) DiscoverDetailed(ctx context.Context, rawURL string) (Discovery
 			return DiscoveryResult{}, ErrUnavailable
 		}
 		for node := range document.Descendants() {
+			if ctx.Err() != nil {
+				break
+			}
 			if node.Type == html.ElementNode && node.Data == "a" {
-				links = append(links, DiscoveredLink{URL: attribute(node, "href")})
+				if len(links) < maxDiscoveryInspectedLinks {
+					links = append(links, DiscoveredLink{URL: attribute(node, "href")})
+				} else {
+					uninspectedLinks++
+				}
 			}
 		}
 	} else if mediaType == "application/xml" || mediaType == "text/xml" || strings.HasSuffix(mediaType, "+xml") || bytes.HasPrefix(bytes.TrimSpace(body), []byte("<?xml")) {
@@ -124,7 +135,9 @@ func (c *Client) DiscoverDetailed(ctx context.Context, rawURL string) (Discovery
 	} else {
 		return DiscoveryResult{}, ErrUnavailable
 	}
-	return c.discoveryArticleReportContext(ctx, response.Request.URL, links)
+	report, err := c.discoveryArticleReportContext(ctx, response.Request.URL, links)
+	report.UninspectedLinks += uninspectedLinks
+	return report, err
 }
 
 func discoveryFeedLinks(body []byte) ([]DiscoveredLink, error) {
@@ -223,6 +236,10 @@ func (c *Client) discoveryArticleReportContext(ctx context.Context, base *url.UR
 			result.UninspectedLinks = len(links) - i
 			return result, err
 		}
+		if i >= maxDiscoveryInspectedLinks {
+			result.UninspectedLinks = len(links) - i
+			break
+		}
 		result.InspectedLinks++
 		raw := strings.TrimSpace(candidate.URL)
 		if raw == "" || strings.HasPrefix(raw, "#") {
@@ -294,6 +311,10 @@ func (c *Client) discoveryArticleReportContext(ctx context.Context, base *url.UR
 		}
 		if !article {
 			reject("not_article_path")
+			continue
+		}
+		if len(result.Links) >= maxDiscoveredLinks {
+			reject("discovery_limit")
 			continue
 		}
 		result.Links = append(result.Links, DiscoveredLink{URL: address, PublishedAt: candidate.PublishedAt})
