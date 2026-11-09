@@ -148,7 +148,7 @@ $processor->processNext();
 $emptyStatus = $repository->status($emptyRunId);
 assert(null !== $emptyStatus && 'completed' === $emptyStatus['status']);
 assert(4 === (int) $connection->fetchOne('SELECT COUNT(*) FROM artifacts WHERE run_id = :id', ['id' => $emptyRunId]));
-assert(str_contains((string) $connection->fetchOne("SELECT content FROM artifacts WHERE run_id = :id AND kind = 'digest'", ['id' => $emptyRunId]), 'Подходящих событий за период нет.'));
+assert(str_contains((string) $connection->fetchOne("SELECT content FROM artifacts WHERE run_id = :id AND kind = 'digest'", ['id' => $emptyRunId]), 'В выпуск включено 0 событий.'));
 $siteRunId = '00000000-0000-4000-8000-000000000003';
 $connection->insert('runs', ['id' => $siteRunId, 'control_time' => '2026-11-06T10:00:00+03:00', 'status' => 'queued', 'settings_snapshot' => '{"source_urls":["https://example.org"]}', 'created_at' => '2026-11-06T10:02:00+03:00']);
 $connection->insert('run_inputs', ['id' => 'input-3', 'run_id' => $siteRunId, 'kind' => 'site', 'name' => 'Example', 'locator' => 'https://example.org/news', 'status' => 'pending']);

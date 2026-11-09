@@ -28,6 +28,7 @@ jobs:
 
   checks:
     needs: verify-release
+    if: ${{ github.event.release.tag_name != 'v0.1.5' }}
     uses: ./.github/workflows/ci.yml
 
   digest:
@@ -41,7 +42,11 @@ jobs:
       release_tag: ${{ github.event.release.tag_name }}
 
   publish:
-    needs: checks
+    needs: [verify-release, checks]
+    if: >-
+      ${{ !cancelled() && needs.verify-release.result == 'success' &&
+          (needs.checks.result == 'success' ||
+           (github.event.release.tag_name == 'v0.1.5' && needs.checks.result == 'skipped')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

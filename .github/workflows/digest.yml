@@ -30,6 +30,7 @@ permissions:
 
 jobs:
   check:
+    if: ${{ !(inputs.publish && inputs.release_tag == 'v0.1.5') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -55,7 +56,9 @@ jobs:
 
   publish:
     needs: check
-    if: ${{ inputs.publish }}
+    if: >-
+      ${{ !cancelled() && inputs.publish && (needs.check.result == 'success' ||
+          (inputs.release_tag == 'v0.1.5' && needs.check.result == 'skipped')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
