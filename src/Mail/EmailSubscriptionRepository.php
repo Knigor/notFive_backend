@@ -5,17 +5,21 @@ declare(strict_types=1);
 namespace App\Mail;
 
 use App\Digest\DeliveryRepository;
+use App\Mail\Message\SendEmailConfirmation;
 use Doctrine\DBAL\Connection;
 
 final readonly class EmailSubscriptionRepository
 {
-    public function __construct(private Connection $connection, private DeliveryRepository $deliveries)
-    {
+    public function __construct(
+        private Connection $connection,
+        private DeliveryRepository $deliveries,
+        private EmailConfirmationToken $tokens,
+    ) {
     }
 
-    public function reserveConfirmation(string $email, string $locale, string $clientIp): ?string
+    public function reserveConfirmation(string $email, string $locale, string $clientIp): ?SendEmailConfirmation
     {
-        return $this->connection->transactional(function () use ($email, $locale, $clientIp): ?string {
+        return $this->connection->transactional(function () use ($email, $locale, $clientIp): ?SendEmailConfirmation {
             // Serialize requests for the same address even before it has a row.
             $this->connection->fetchOne(
                 "SELECT pg_advisory_xact_lock(hashtextextended('email_subscription:' || :email, 0))",
@@ -23,7 +27,7 @@ final readonly class EmailSubscriptionRepository
             );
 
             $target = $this->connection->fetchAssociative(<<<'SQL'
-                SELECT status,
+                SELECT id, status,
                     CASE WHEN email_confirmation_sent_at > CURRENT_TIMESTAMP - INTERVAL '60 seconds' THEN 1 ELSE 0 END AS cooling_down
                 FROM delivery_targets
                 WHERE channel = 'email' AND destination = :email
@@ -38,34 +42,71 @@ final readonly class EmailSubscriptionRepository
                 return null;
             }
 
-            $token = bin2hex(random_bytes(32));
+            $targetId = false === $target ? (string) $this->connection->fetchOne('SELECT gen_random_uuid()') : (string) $target['id'];
+            $confirmation = new SendEmailConfirmation($targetId, bin2hex(random_bytes(32)));
             $this->connection->executeStatement(<<<'SQL'
                 INSERT INTO delivery_targets (id, channel, destination, status, locale,
-                    email_confirmation_token_hash, email_confirmation_expires_at, email_confirmation_sent_at)
-                VALUES (gen_random_uuid(), 'email', :email, 'pending', :locale,
-                    :token_hash, CURRENT_TIMESTAMP + INTERVAL '24 hours', CURRENT_TIMESTAMP)
+                    email_confirmation_token_hash, email_confirmation_expires_at, email_confirmation_sent_at,
+                    email_confirmation_request_id, email_confirmation_delivered_at)
+                VALUES (:id, 'email', :email, 'pending', :locale,
+                    :token_hash, CURRENT_TIMESTAMP + INTERVAL '24 hours', CURRENT_TIMESTAMP, :request_id, NULL)
                 ON CONFLICT (channel, destination) DO UPDATE
                 SET status = 'pending', locale = EXCLUDED.locale, confirmed_at = NULL,
                     email_confirmation_token_hash = EXCLUDED.email_confirmation_token_hash,
                     email_confirmation_expires_at = EXCLUDED.email_confirmation_expires_at,
-                    email_confirmation_sent_at = EXCLUDED.email_confirmation_sent_at
+                    email_confirmation_sent_at = EXCLUDED.email_confirmation_sent_at,
+                    email_confirmation_request_id = EXCLUDED.email_confirmation_request_id,
+                    email_confirmation_delivered_at = NULL
                 SQL, [
+                'id' => $targetId,
                 'email' => $email,
                 'locale' => $locale,
-                'token_hash' => hash('sha256', $token),
+                'token_hash' => hash('sha256', $this->tokens->create($confirmation)),
+                'request_id' => $confirmation->requestId,
             ]);
 
-            return $token;
+            return $confirmation;
         });
     }
 
-    public function releaseConfirmation(string $token): void
+    public function releaseConfirmation(SendEmailConfirmation $confirmation): void
     {
         $this->connection->executeStatement(<<<'SQL'
             UPDATE delivery_targets
-            SET email_confirmation_token_hash = NULL, email_confirmation_expires_at = NULL, email_confirmation_sent_at = NULL
-            WHERE channel = 'email' AND status = 'pending' AND email_confirmation_token_hash = :token_hash
-            SQL, ['token_hash' => hash('sha256', $token)]);
+            SET email_confirmation_token_hash = NULL, email_confirmation_expires_at = NULL, email_confirmation_sent_at = NULL,
+                email_confirmation_request_id = NULL, email_confirmation_delivered_at = NULL
+            WHERE id = :id AND channel = 'email' AND status = 'pending' AND email_confirmation_request_id = :request_id
+            SQL, ['id' => $confirmation->targetId, 'request_id' => $confirmation->requestId]);
+    }
+
+    /** @return array{recipient: string, locale: string}|null */
+    public function lockConfirmation(SendEmailConfirmation $confirmation): ?array
+    {
+        // A blocking lock prevents a competing worker from acknowledging an unfinished send.
+        $target = $this->connection->fetchAssociative(<<<'SQL'
+            SELECT destination, locale, email_confirmation_token_hash FROM delivery_targets
+            WHERE id = :id AND channel = 'email' AND status = 'pending'
+                AND email_confirmation_request_id = :request_id AND email_confirmation_delivered_at IS NULL
+                AND email_confirmation_expires_at > CURRENT_TIMESTAMP
+            FOR UPDATE
+            SQL, ['id' => $confirmation->targetId, 'request_id' => $confirmation->requestId]);
+        if (false === $target) {
+            return null;
+        }
+
+        if (!hash_equals((string) $target['email_confirmation_token_hash'], hash('sha256', $this->tokens->create($confirmation)))) {
+            throw new \RuntimeException('Email confirmation signing key does not match the reservation.');
+        }
+
+        return ['recipient' => (string) $target['destination'], 'locale' => (string) $target['locale']];
+    }
+
+    public function confirmationDelivered(SendEmailConfirmation $confirmation): void
+    {
+        $this->connection->executeStatement(<<<'SQL'
+            UPDATE delivery_targets SET email_confirmation_delivered_at = CURRENT_TIMESTAMP
+            WHERE id = :id AND email_confirmation_request_id = :request_id
+            SQL, ['id' => $confirmation->targetId, 'request_id' => $confirmation->requestId]);
     }
 
     public function confirmationState(string $token): string
@@ -135,7 +176,8 @@ final readonly class EmailSubscriptionRepository
             $this->connection->executeStatement(<<<'SQL'
                 UPDATE delivery_targets
                 SET status = 'unsubscribed', email_confirmation_token_hash = NULL,
-                    email_confirmation_expires_at = NULL, email_confirmation_sent_at = NULL
+                    email_confirmation_expires_at = NULL, email_confirmation_sent_at = NULL,
+                    email_confirmation_request_id = NULL, email_confirmation_delivered_at = NULL
                 WHERE id = :id
                 SQL, ['id' => $id]);
             $this->deliveries->cancelPending($id);

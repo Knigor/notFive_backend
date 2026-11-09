@@ -24,6 +24,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-notfive}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-notfive-local-only}
       MAILER_DSN: ${LOCAL_MAILER_DSN:-smtp://mailpit:1025}
+      EMAIL_DELIVERY_MODE: ${EMAIL_DELIVERY_MODE:-sync}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-notfive@localhost.invalid}
       TELEGRAM_API_BASE_URL: ${TELEGRAM_API_BASE_URL:-https://api.telegram.org}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
@@ -88,6 +89,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-notfive-local-only}
       DIGEST_SERVICE_TOKEN: ${DIGEST_SERVICE_TOKEN:-}
       GO_SERVICE_URL: ${GO_SERVICE_URL:-}
+      EMAIL_DELIVERY_MODE: ${EMAIL_DELIVERY_MODE:-sync}
+      MAILER_DSN: ${LOCAL_MAILER_DSN:-smtp://mailpit:1025}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-notfive@localhost.invalid}
+      DEFAULT_URI: ${DEFAULT_URI:-https://api.galaxiit.ru}
     volumes:
       - ./src:/app/src:ro
       - ./config:/app/config:ro

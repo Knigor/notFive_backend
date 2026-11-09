@@ -29,7 +29,7 @@ def config():
         ADMIN_BOOTSTRAP_PASSWORD="smoke-password-123", POSTGRES_DB="notfive",
         POSTGRES_USER="notfive", POSTGRES_PASSWORD="smoke-db-password",
         HTTP_PORT="8080", DIGEST_HTTP_PORT="8081", MAILER_DSN="smtp://smoke.invalid:25",
-        MAIL_FROM_ADDRESS="smoke@example.invalid", TELEGRAM_BOT_TOKEN="123:smoke_only",
+        MAIL_FROM_ADDRESS="smoke@example.invalid", EMAIL_DELIVERY_MODE="queued", TELEGRAM_BOT_TOKEN="123:smoke_only",
         DIGEST_SERVICE_TOKEN="d" * 64, GO_SERVICE_URL="http://digest:8081",
         DEFAULT_URI="https://example.invalid", APP_CORS_ORIGIN="https://frontend.example.invalid",
         YANDEX_BASE_URL="https://ai.api.cloud.yandex.net/v1", REQUEST_TIMEOUT="180s",
@@ -50,7 +50,7 @@ def check_updater(directory):
     assert updater.dotenv_values(saved) == dict(values, APP_IMAGE=APP, DIGEST_IMAGE=GO, UNRELATED="keep")
     updater.install(path, values, APP, GO)
     assert path.read_text() == saved
-    for bad in (dict(values, UNKNOWN="no"), dict(values, YANDEX_API_KEY="secret\nnewline"), dict(values, POSTGRES_PASSWORD="different"), dict(values, GO_SERVICE_URL="http://other:8081")):
+    for bad in (dict(values, EMAIL_DELIVERY_MODE="invalid"), dict(values, UNKNOWN="no"), dict(values, YANDEX_API_KEY="secret\nnewline"), dict(values, POSTGRES_PASSWORD="different"), dict(values, GO_SERVICE_URL="http://other:8081")):
         try:
             updater.install(path, bad, APP, GO)
         except ValueError:

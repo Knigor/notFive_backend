@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
+use Doctrine\DBAL\Connection;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
@@ -12,10 +13,11 @@ final readonly class EmailSubscriptionService
 {
     public function __construct(
         private EmailSubscriptionRepository $subscriptions,
-        private EmailSubscriptionComposer $composer,
-        private DigestEmailSender $sender,
+        private EmailConfirmationSender $sender,
         private ValidatorInterface $validator,
         private LoggerInterface $logger,
+        private Connection $connection,
+        private EmailDeliveryDispatcher $dispatcher,
     ) {
     }
 
@@ -33,18 +35,37 @@ final readonly class EmailSubscriptionService
         }
 
         $locale = 'en' === $locale ? 'en' : 'ru';
-        $token = $this->subscriptions->reserveConfirmation($email, $locale, $clientIp);
+        if ($this->dispatcher->isQueued()) {
+            try {
+                // The reservation and queue insert share the same Doctrine connection and commit.
+                $this->connection->transactional(function () use ($email, $locale, $clientIp): void {
+                    $confirmation = $this->subscriptions->reserveConfirmation($email, $locale, $clientIp);
+                    if (null !== $confirmation) {
+                        $this->dispatcher->dispatch($confirmation);
+                    }
+                });
+            } catch (\Throwable) {
+                $this->logger->warning('Email confirmation queue is unavailable.');
+                throw new EmailSubscriptionException('unavailable');
+            }
 
-        if (null === $token) {
+            return;
+        }
+
+        $confirmation = $this->subscriptions->reserveConfirmation($email, $locale, $clientIp);
+        if (null === $confirmation) {
             return;
         }
 
         try {
-            $this->sender->send($email, $this->composer->confirmation($token, $locale));
+            if ($this->sender->send($confirmation)) {
+                return;
+            }
         } catch (\Throwable) {
-            $this->logger->warning('Email confirmation transport failed.');
-            $this->subscriptions->releaseConfirmation($token);
-            throw new EmailSubscriptionException('unavailable');
+            $this->logger->warning('Email confirmation failed.');
         }
+
+        $this->subscriptions->releaseConfirmation($confirmation);
+        throw new EmailSubscriptionException('unavailable');
     }
 }

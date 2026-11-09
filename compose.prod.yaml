@@ -18,6 +18,7 @@ services:
       SYMFONY_TRUSTED_HEADERS: 'x-forwarded-for,x-forwarded-proto'
       DEFAULT_URI: ${DEFAULT_URI:?Set DEFAULT_URI}
       MAILER_DSN: ${MAILER_DSN:-null://null}
+      EMAIL_DELIVERY_MODE: ${EMAIL_DELIVERY_MODE:-sync}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-notfive@localhost.invalid}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       POSTGRES_HOST: database
@@ -83,6 +84,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       DIGEST_SERVICE_TOKEN: ${DIGEST_SERVICE_TOKEN:-}
       GO_SERVICE_URL: ${GO_SERVICE_URL:-}
+      EMAIL_DELIVERY_MODE: ${EMAIL_DELIVERY_MODE:-sync}
+      MAILER_DSN: ${MAILER_DSN:-null://null}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-notfive@localhost.invalid}
+      DEFAULT_URI: ${DEFAULT_URI:-https://api.galaxiit.ru}
     depends_on:
       database:
         condition: service_healthy

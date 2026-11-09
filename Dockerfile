@@ -6,6 +6,8 @@ RUN apt-get update \
     && docker-php-ext-install -j"$(nproc)" pdo_pgsql intl opcache zip \
     && rm -rf /var/lib/apt/lists/*
 
+RUN docker-php-ext-install pcntl
+
 WORKDIR /app
 COPY docker/apache.conf /etc/apache2/sites-available/000-default.conf
 COPY docker/php.ini /usr/local/etc/php/conf.d/app.ini

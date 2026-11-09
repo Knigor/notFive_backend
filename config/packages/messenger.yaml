@@ -1,0 +1,27 @@
+framework:
+    messenger:
+        failure_transport: email_failed
+        transports:
+            email:
+                dsn: 'doctrine://default'
+                options:
+                    table_name: messenger_messages
+                    queue_name: email
+                    auto_setup: false
+                    use_notify: false
+                    redeliver_timeout: 300
+                retry_strategy:
+                    max_retries: 8
+                    delay: 10000
+                    multiplier: 2
+                    max_delay: 600000
+            email_failed:
+                dsn: 'doctrine://default'
+                options:
+                    table_name: messenger_messages
+                    queue_name: email_failed
+                    auto_setup: false
+                    use_notify: false
+        routing:
+            'App\Mail\Message\SendEmailConfirmation': email
+            'App\Mail\Message\SendNewsletterDelivery': email

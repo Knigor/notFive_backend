@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 CONFIG_KEYS = (
     "APP_SECRET JWT_SECRET ADMIN_BOOTSTRAP_USERNAME ADMIN_BOOTSTRAP_PASSWORD "
     "POSTGRES_PASSWORD POSTGRES_DB POSTGRES_USER APP_CORS_ORIGIN DEFAULT_URI HTTP_PORT "
-    "MAILER_DSN MAIL_FROM_ADDRESS TELEGRAM_BOT_TOKEN DIGEST_SERVICE_TOKEN GO_SERVICE_URL "
+    "MAILER_DSN MAIL_FROM_ADDRESS EMAIL_DELIVERY_MODE TELEGRAM_BOT_TOKEN DIGEST_SERVICE_TOKEN GO_SERVICE_URL "
     "YANDEX_API_KEY YANDEX_FOLDER_ID YANDEX_MODEL YANDEX_ANALYSIS_MODEL YANDEX_EXPORT_MODEL "
     "YANDEX_ANALYSIS_MAX_OUTPUT_TOKENS YANDEX_EXPORT_MAX_OUTPUT_TOKENS YANDEX_BASE_URL "
     "YANDEX_SEARCH_DOMAINS REQUEST_TIMEOUT MAX_CONCURRENT MAX_OUTPUT_TOKENS DIGEST_HTTP_PORT"
@@ -65,6 +65,8 @@ def validate(config):
         raise ValueError("Invalid production configuration field DIGEST_SERVICE_TOKEN")
     if config["GO_SERVICE_URL"] != "http://digest:8081":
         raise ValueError("GO_SERVICE_URL must address the internal digest service")
+    if config["EMAIL_DELIVERY_MODE"] not in {"sync", "queued"}:
+        raise ValueError("Invalid production configuration field EMAIL_DELIVERY_MODE")
     if config["MAILER_DSN"].startswith("null:"):
         raise ValueError("Production mail transport must be configured")
     for key, minimum, maximum in (
