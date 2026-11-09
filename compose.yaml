@@ -26,6 +26,7 @@ services:
       MAILER_DSN: ${LOCAL_MAILER_DSN:-smtp://mailpit:1025}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-notfive@localhost.invalid}
       TELEGRAM_API_BASE_URL: ${TELEGRAM_API_BASE_URL:-https://api.telegram.org}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       DIGEST_SERVICE_TOKEN: ${DIGEST_SERVICE_TOKEN:-}
       GO_SERVICE_URL: ${GO_SERVICE_URL:-}
     volumes:

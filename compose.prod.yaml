@@ -19,6 +19,7 @@ services:
       DEFAULT_URI: ${DEFAULT_URI:?Set DEFAULT_URI}
       MAILER_DSN: ${MAILER_DSN:-null://null}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-notfive@localhost.invalid}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       POSTGRES_HOST: database
       POSTGRES_DB: ${POSTGRES_DB:-notfive}
       POSTGRES_USER: ${POSTGRES_USER:-notfive}

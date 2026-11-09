@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Digest\DeliveryRepository;
 use App\Digest\PublishedDigestRepository;
 use App\Telegram\TelegramApiClient;
 use App\Telegram\TelegramDigestSender;
@@ -51,7 +52,7 @@ $translator->addLoader('yaml', new YamlFileLoader());
 $translator->addResource('yaml', dirname(__DIR__).'/translations/messages.ru.yaml', 'ru');
 $translator->addResource('yaml', dirname(__DIR__).'/translations/messages.en.yaml', 'en');
 $telegram = new TelegramApiClient($client, 'test-token', 'https://api.telegram.org');
-$subscriptions = new TelegramSubscriptionRepository($connection);
+$subscriptions = new TelegramSubscriptionRepository($connection, new DeliveryRepository($connection));
 $messages = new TelegramMessages($translator);
 $handler = new TelegramUpdateHandler($telegram, $subscriptions, new PublishedDigestRepository($connection), $messages, new TelegramDigestSender($telegram, $messages));
 $poller = new TelegramPoller($telegram, new TelegramUpdateRepository($connection), $handler);

@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace App\Digest;
 
 use App\Mail\EmailNewsletterSender;
+use App\Telegram\TelegramNewsletterSender;
 
 final readonly class DigestPublisher
 {
-    public function __construct(private DigestPublicationRepository $repository, private EmailNewsletterSender $sender)
-    {
+    public function __construct(
+        private DigestPublicationRepository $repository,
+        private EmailNewsletterSender $sender,
+        private TelegramNewsletterSender $telegram,
+    ) {
     }
 
     /** @return array{runId: string, publishedAt: string, alreadyPublished: bool, emailSent: int, emailFailed: int, emailPending: int} */
@@ -20,7 +24,10 @@ final readonly class DigestPublisher
         }
         $result = $this->repository->publish($runId);
 
-        // Publication and recipient snapshot are committed before any external SMTP call.
-        return [...$result, ...$this->sender->send($runId)];
+        // Publication and both recipient snapshots are committed before delivery.
+        $email = $this->sender->send($runId);
+        $this->telegram->send($runId);
+
+        return [...$result, ...$email];
     }
 }

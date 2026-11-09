@@ -18,9 +18,9 @@ telegram:
         sources: '↗ Sources:'
     button:
         latest: "🗞️ Latest edition"
-        subscribe: "🔔 Get editions"
-        pause: "⏸️ Pause"
-        resume: "🔔 Resume"
+        subscribe: "🔔 Turn on updates"
+        pause: "🔕 Turn off updates"
+        resume: "🔔 Turn on updates"
         settings: "⚙️ Settings"
         language_ru: "🇷🇺 Русский"
         language_en: "🇬🇧 English"
@@ -29,7 +29,7 @@ telegram:
         back_to_digest: "← To edition"
     command:
         no_digest: No published digest with a Telegram post is available.
-        delivery_result: 'Sent: %sent%; errors: %failed%.'
+        delivery_result: 'Sent: %sent%; errors: %failed%. Queued %pending%.'
 email_subscription:
     accepted: 'If the address is not confirmed yet, we will send a confirmation link. Please check your inbox.'
     invalid_email: 'Provide a valid email address.'

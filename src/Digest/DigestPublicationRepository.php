@@ -41,16 +41,18 @@ final readonly class DigestPublicationRepository
                 // Snapshot subscribers only once. Retrying publication must not send old issues to new subscribers.
                 $this->connection->executeStatement(<<<'SQL'
                     WITH recipients AS MATERIALIZED (
-                        SELECT id FROM delivery_targets
-                        WHERE channel = 'email' AND status = 'active' AND confirmed_at IS NOT NULL
-                          AND email_unsubscribe_token IS NOT NULL
+                        SELECT id, channel FROM delivery_targets
+                        WHERE status = 'active' AND confirmed_at IS NOT NULL
+                          AND (channel = 'telegram' OR (channel = 'email' AND email_unsubscribe_token IS NOT NULL))
                         ORDER BY id FOR UPDATE
                     )
                     INSERT INTO deliveries (id, artifact_id, target_id, status)
-                    SELECT gen_random_uuid(), :artifact_id, id, 'queued'
+                    SELECT gen_random_uuid(), a.id, recipients.id, 'queued'
                     FROM recipients
+                    JOIN artifacts a ON a.run_id = :run_id
+                        AND a.kind = CASE WHEN recipients.channel = 'email' THEN 'email_preview' ELSE 'post' END
                     ON CONFLICT (artifact_id, target_id) DO NOTHING
-                    SQL, ['artifact_id' => $artifact['id']]);
+                    SQL, ['run_id' => $runId]);
             }
 
             return [

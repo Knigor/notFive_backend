@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
+use App\Digest\DeliveryRepository;
 use App\Digest\PublishedDigestRepository;
 use Doctrine\DBAL\Connection;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -12,7 +13,7 @@ final readonly class EmailNewsletterSender
 {
     public function __construct(
         private Connection $connection,
-        private EmailNewsletterRepository $repository,
+        private DeliveryRepository $repository,
         private PublishedDigestRepository $digests,
         private DigestEmailSender $sender,
         private EmailSubscriptionLinks $links,
@@ -26,16 +27,17 @@ final readonly class EmailNewsletterSender
     {
         $digest = $this->digests->find($runId);
         if (null === $digest || null === $digest->subject) {
-            return $this->repository->counts($runId);
+            return $this->counts($runId);
         }
 
-        foreach ($this->repository->pending($runId) as $delivery) {
+        foreach ($this->repository->pending($runId, 'email') as $delivery) {
             $this->connection->transactional(function () use ($delivery, $digest): void {
-                $message = $this->repository->lockMessage($delivery['id'], $delivery['targetId']);
-                if (null === $message) {
+                $message = $this->repository->lockMessage($delivery['id'], $delivery['targetId'], 'email');
+                if (null === $message || null === $message['token']) {
                     return;
                 }
 
+                $this->repository->attempt($delivery['id']);
                 try {
                     $url = $this->links->unsubscribe($message['token']);
                     $footer = $this->translator->trans('email_newsletter.unsubscribe', locale: $message['locale']);
@@ -48,7 +50,7 @@ final readonly class EmailNewsletterSender
                     );
                     $this->sender->send($message['recipient'], $preview);
                 } catch (\Throwable) {
-                    $this->repository->failed($delivery['id']);
+                    $this->repository->failed($delivery['id'], 'email_transport_failed');
 
                     return;
                 }
@@ -56,6 +58,14 @@ final readonly class EmailNewsletterSender
             });
         }
 
-        return $this->repository->counts($runId);
+        return $this->counts($runId);
+    }
+
+    /** @return array{emailSent: int, emailFailed: int, emailPending: int} */
+    private function counts(string $runId): array
+    {
+        $counts = $this->repository->counts($runId, 'email');
+
+        return ['emailSent' => $counts['sent'], 'emailFailed' => $counts['failed'], 'emailPending' => $counts['queued']];
     }
 }

@@ -14,6 +14,13 @@ final readonly class PublishedDigestRepository
 
     public function latest(): ?PublishedDigest
     {
+        $runId = $this->latestRunId();
+
+        return null === $runId ? null : $this->find($runId);
+    }
+
+    public function latestRunId(): ?string
+    {
         $runId = $this->connection->fetchOne(<<<'SQL'
             SELECT a.run_id FROM artifacts a
             JOIN runs r ON r.id = a.run_id
@@ -22,7 +29,7 @@ final readonly class PublishedDigestRepository
             LIMIT 1
             SQL);
 
-        return false === $runId ? null : $this->find((string) $runId);
+        return false === $runId ? null : (string) $runId;
     }
 
     public function find(string $runId): ?PublishedDigest

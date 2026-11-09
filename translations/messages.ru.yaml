@@ -18,9 +18,9 @@ telegram:
         sources: '↗ Источники:'
     button:
         latest: "🗞️ Последний выпуск"
-        subscribe: "🔔 Получать выпуски"
-        pause: "⏸️ Приостановить"
-        resume: "🔔 Возобновить"
+        subscribe: "🔔 Включить рассылку"
+        pause: "🔕 Отключить рассылку"
+        resume: "🔔 Включить рассылку"
         settings: "⚙️ Настройки"
         language_ru: "🇷🇺 Русский"
         language_en: "🇬🇧 English"
@@ -29,7 +29,7 @@ telegram:
         back_to_digest: "← К выпуску"
     command:
         no_digest: Нет опубликованного выпуска с Telegram-постом.
-        delivery_result: 'Отправлено: %sent%; ошибок: %failed%.'
+        delivery_result: 'Отправлено: %sent%; ошибок: %failed%. В очереди %pending%.'
 email_subscription:
     accepted: 'Если адрес ещё не подтверждён, мы отправим письмо со ссылкой подтверждения. Проверьте почту.'
     invalid_email: 'Укажите корректный адрес электронной почты.'

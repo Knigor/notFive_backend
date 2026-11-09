@@ -19,6 +19,11 @@ final readonly class TelegramApiClient
     ) {
     }
 
+    public function isConfigured(): bool
+    {
+        return '' !== $this->token;
+    }
+
     /** @param list<list<array{ text: string, callback_data?: string, url?: string, style?: 'primary'|'success'|'danger' }>> $buttons */
     public function sendMessage(string $chatId, string $text, array $buttons = [], bool $html = false): string
     {
@@ -93,7 +98,7 @@ final readonly class TelegramApiClient
      */
     private function request(string $method, array $payload, int $timeout = 10): array
     {
-        if ('' === $this->token) {
+        if (!$this->isConfigured()) {
             throw new TelegramApiException('Telegram bot token is not configured.');
         }
 
