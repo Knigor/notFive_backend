@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/url"
 	"slices"
 	"strings"
@@ -30,65 +31,25 @@ func Prepare(request Request) (Prepared, error) {
 	if a.RecommendedOrder == nil || len(a.RecommendedOrder) > 5 {
 		return Prepared{}, errors.New("invalid_selection")
 	}
-	prepared := Prepared{Request: request, Locale: "ru", issues: map[string][]string{}, excluded: news.Excluded}
-	prepared.Request.Analysis.ControlTime = news.Dataset.ControlTime
-	prepared.Request.Analysis.PeriodStart = news.Dataset.PeriodStart
-	items := make(map[string]analysis.Item, len(request.News.Items))
-	for _, item := range request.News.Items {
-		items[item.ID] = item
-	}
-	selected := map[string]analysis.Group{}
-	sourceIDs := map[string]bool{}
+	seen := map[string]bool{}
 	for _, id := range a.RecommendedOrder {
-		group, exists := a.Groups[id]
-		if _, duplicate := selected[id]; !exists || duplicate {
+		if _, exists := a.Groups[id]; !exists || seen[id] {
 			return Prepared{}, errors.New("invalid_selection")
 		}
+		seen[id] = true
+	}
+	verified, issues, checks := verifiedAnalysis(a, news)
+	prepared := Prepared{Request: request, Locale: "ru", issues: issues, EvidenceChecks: checks}
+	prepared.Request.Analysis = verified
+	prepared.Request.Analysis.ControlTime = news.Dataset.ControlTime
+	prepared.Request.Analysis.PeriodStart = news.Dataset.PeriodStart
+	selected := map[string]analysis.Group{}
+	sourceIDs := map[string]bool{}
+	for _, id := range verified.RecommendedOrder {
+		group := verified.Groups[id]
 		selected[id] = group
-		issues := []string{}
-		if len(group.IDs) == 0 || len(group.Facts) == 0 {
-			issues = append(issues, "missing_facts_or_sources")
-		}
 		for _, articleID := range group.IDs {
-			item, exists := items[articleID]
-			if !exists {
-				issues = append(issues, "unknown_article:"+articleID)
-				continue
-			}
-			if reason := news.Excluded[articleID]; reason != "" {
-				issues = append(issues, reason+":"+articleID)
-			}
-			if !validURL(item.URL) {
-				issues = append(issues, "invalid_source_url:"+articleID)
-			}
-		}
-		for _, fact := range group.Facts {
-			valid := len(fact.SourceIDs) > 0 && len(fact.Evidence) > 0
-			for _, articleID := range fact.SourceIDs {
-				if !slices.Contains(group.IDs, articleID) {
-					valid = false
-				}
-			}
-			for _, evidence := range fact.Evidence {
-				item, exists := items[evidence.ArticleID]
-				if !exists || item.Text == nil || strings.TrimSpace(evidence.Quote) == "" || !strings.Contains(*item.Text, evidence.Quote) || !slices.Contains(fact.SourceIDs, evidence.ArticleID) || !slices.Contains(group.IDs, evidence.ArticleID) {
-					valid = false
-				}
-			}
-			if !valid {
-				issues = append(issues, "unverified_evidence")
-			}
-		}
-		if len(issues) > 0 {
-			slices.Sort(issues)
-			prepared.issues[id] = slices.Compact(issues)
-			// Keep the original analysis in the audit. Do not send unsupported
-			// claims as prose material: the model must describe the issue itself.
-			selected[id] = analysis.Group{Name: group.Name, IDs: slices.Clone(group.IDs), Facts: []analysis.Fact{}, Contradictions: []analysis.Contradiction{}}
-		} else {
-			for _, articleID := range group.IDs {
-				sourceIDs[articleID] = true
-			}
+			sourceIDs[articleID] = true
 		}
 	}
 	articles := []analysis.Item{}
@@ -105,7 +66,7 @@ func Prepare(request Request) (Prepared, error) {
 		Groups      map[string]analysis.Group `json:"untrusted_analysis"`
 		Articles    []analysis.Item           `json:"untrusted_articles"`
 		Issues      map[string][]string       `json:"group_issues"`
-	}{news.Dataset.ControlTime, news.Dataset.PeriodStart, a.RecommendedOrder, selected, articles, prepared.issues})
+	}{news.Dataset.ControlTime, news.Dataset.PeriodStart, verified.RecommendedOrder, selected, articles, prepared.issues})
 	prepared.Input = string(input)
 	return prepared, err
 }
@@ -124,6 +85,13 @@ func validURL(value string) bool {
 func Export(ctx context.Context, provider collector.Provider, prepared Prepared) (Result, collector.Generation, error) {
 	result := Result{Events: []EventText{}, Warnings: append([]string{}, prepared.Request.Analysis.Warnings...)}
 	generation := collector.Generation{}
+	for _, id := range slices.Sorted(maps.Keys(prepared.issues)) {
+		key := "filtered_group"
+		if _, retained := prepared.Request.Analysis.Groups[id]; !retained {
+			key = "excluded_group"
+		}
+		result.Warnings = append(result.Warnings, message(prepared.Locale, key, id, strings.Join(prepared.issues[id], ", ")))
+	}
 	response := modelResult{Events: []EventText{}}
 	if len(prepared.Request.Analysis.RecommendedOrder) > 0 {
 		var err error
@@ -154,12 +122,15 @@ func Export(ctx context.Context, provider collector.Provider, prepared Prepared)
 		if !exists || strings.TrimSpace(text.Title) == "" || strings.TrimSpace(text.Summary) == "" || strings.TrimSpace(text.Consequences) == "" || strings.TrimSpace(text.Post) == "" || strings.TrimSpace(text.Reason) == "" {
 			return result, generation, ErrInvalidModelOutput
 		}
-		if len(prepared.issues[id]) > 0 {
-			result.Warnings = append(result.Warnings, message(prepared.Locale, "unconfirmed_group", id, strings.Join(prepared.issues[id], ", ")))
-		}
 		result.Events = append(result.Events, text)
 	}
 	result.SelectionSummary = response.SelectionSummary
+	if len(prepared.Request.Analysis.RecommendedOrder) == 0 {
+		result.SelectionSummary = message(prepared.Locale, "no_selected_events")
+		if len(prepared.issues) > 0 {
+			result.SelectionSummary = message(prepared.Locale, "no_verified_events")
+		}
+	}
 	return result, generation, nil
 }
 

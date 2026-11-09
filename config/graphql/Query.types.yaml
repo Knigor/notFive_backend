@@ -44,6 +44,9 @@ RunStatus:
                 type: String
             files:
                 type: '[String!]!'
+            diagnostics:
+                type: RunDiagnostics!
+                complexity: '@=childrenComplexity + 1'
 
 SiteSource:
     type: object
@@ -59,3 +62,60 @@ SiteSource:
                 type: String!
             status:
                 type: String!
+
+RunDiagnostics:
+    type: object
+    config:
+        fields:
+            collectionRunId:
+                type: String
+            digestRunId:
+                type: String
+            counts:
+                type: RunDiagnosticCounts!
+                complexity: '@=childrenComplexity + 1'
+            warnings:
+                type: '[String!]!'
+            materials:
+                type: '[RunDiagnosticMaterial!]!'
+                complexity: '@=childrenComplexity * 200 + 1'
+
+RunDiagnosticCounts:
+    type: object
+    config:
+        fields:
+            candidates:
+                type: Int!
+            collected:
+                type: Int!
+            imported:
+                type: Int!
+            included:
+                type: Int!
+            merged:
+                type: Int!
+            excluded:
+                type: Int!
+            events:
+                type: Int!
+
+RunDiagnosticMaterial:
+    type: object
+    config:
+        fields:
+            id:
+                type: ID!
+            url:
+                type: String
+            title:
+                type: String
+            stage:
+                type: String!
+            status:
+                type: String!
+            group:
+                type: String
+            reason:
+                type: String
+            error:
+                type: String

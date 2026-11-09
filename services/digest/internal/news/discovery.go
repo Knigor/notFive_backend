@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 )
 
 const maxDiscoveredLinks = 60
+const maxDiscoveryInspectedLinks = 300
 
 // DiscoveredLink is a candidate, not a verified article. Feed publication dates
 // are only discovery hints; Fetch must independently check the source page.
@@ -29,35 +31,70 @@ type DiscoveredLink struct {
 
 // Discover reads one feed or listing page and returns article candidates. It
 // never follows discovered links; Fetch must independently verify their dates.
+type DiscoveryRejection struct {
+	URL  string `json:"url"`
+	Code string `json:"error"`
+}
+
+type DiscoveryResult struct {
+	Links            []DiscoveredLink
+	Rejected         []DiscoveryRejection
+	InspectedLinks   int
+	UninspectedLinks int
+}
+
 func (c *Client) Discover(ctx context.Context, rawURL string) ([]DiscoveredLink, error) {
+	result, err := c.DiscoverDetailed(ctx, rawURL)
+	return result.Links, err
+}
+
+func (c *Client) DiscoverDetailed(ctx context.Context, rawURL string) (DiscoveryResult, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, ErrUntrustedURL
+		return DiscoveryResult{}, ErrUntrustedURL
 	}
 	if err := c.trustedURL(u); err != nil {
-		return nil, err
+		return DiscoveryResult{}, err
 	}
 	u.Fragment = ""
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, ErrUntrustedURL
+		return DiscoveryResult{}, ErrUntrustedURL
 	}
 	req.Header.Set("User-Agent", "notFive-news-verifier/1.0")
 	req.Header.Set("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml, text/html, application/xhtml+xml")
 	response, err := c.http.Do(req)
 	if err != nil {
 		if errors.Is(err, ErrUntrustedURL) {
-			return nil, ErrUntrustedURL
+			return DiscoveryResult{}, ErrUntrustedURL
 		}
-		return nil, errors.Join(ErrUnavailable, ctx.Err())
+		if detail, ok := errors.AsType[*SourceError](err); ok {
+			return DiscoveryResult{}, detail
+		}
+		if timed, ok := errors.AsType[interface {
+			error
+			Timeout() bool
+		}](err); ok && timed.Timeout() {
+			return DiscoveryResult{}, failure(ErrUnavailable, "request_timeout", "")
+		}
+		if ctx.Err() != nil {
+			return DiscoveryResult{}, errors.Join(ErrUnavailable, ctx.Err())
+		}
+		return DiscoveryResult{}, failure(ErrUnavailable, "transport_error", "")
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK || response.ContentLength > maxBodyBytes {
-		return nil, ErrUnavailable
+	if response.StatusCode != http.StatusOK {
+		return DiscoveryResult{}, failure(ErrUnavailable, fmt.Sprintf("http_status_%d", response.StatusCode), "")
+	}
+	if response.ContentLength > maxBodyBytes {
+		return DiscoveryResult{}, failure(ErrUnavailable, "body_too_large", "")
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, maxBodyBytes+1))
-	if err != nil || len(body) > maxBodyBytes {
-		return nil, errors.Join(ErrUnavailable, ctx.Err())
+	if len(body) > maxBodyBytes {
+		return DiscoveryResult{}, failure(ErrUnavailable, "body_too_large", "")
+	}
+	if err != nil {
+		return DiscoveryResult{}, failure(errors.Join(ErrUnavailable, ctx.Err()), "body_read_error", "")
 	}
 	contentType := response.Header.Get("Content-Type")
 	if contentType == "" {
@@ -65,32 +102,42 @@ func (c *Client) Discover(ctx context.Context, rawURL string) ([]DiscoveredLink,
 	}
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		return nil, ErrUnavailable
+		return DiscoveryResult{}, ErrUnavailable
 	}
 	var links []DiscoveredLink
+	uninspectedLinks := 0
 	if mediaType == "text/html" || mediaType == "application/xhtml+xml" {
 		reader, err := charset.NewReader(bytes.NewReader(body), contentType)
 		if err != nil {
-			return nil, ErrUnavailable
+			return DiscoveryResult{}, ErrUnavailable
 		}
 		document, err := html.Parse(reader)
 		if err != nil {
-			return nil, ErrUnavailable
+			return DiscoveryResult{}, ErrUnavailable
 		}
 		for node := range document.Descendants() {
+			if ctx.Err() != nil {
+				break
+			}
 			if node.Type == html.ElementNode && node.Data == "a" {
-				links = append(links, DiscoveredLink{URL: attribute(node, "href")})
+				if len(links) < maxDiscoveryInspectedLinks {
+					links = append(links, DiscoveredLink{URL: attribute(node, "href")})
+				} else {
+					uninspectedLinks++
+				}
 			}
 		}
 	} else if mediaType == "application/xml" || mediaType == "text/xml" || strings.HasSuffix(mediaType, "+xml") || bytes.HasPrefix(bytes.TrimSpace(body), []byte("<?xml")) {
 		links, err = discoveryFeedLinks(body)
 		if err != nil {
-			return nil, ErrUnavailable
+			return DiscoveryResult{}, ErrUnavailable
 		}
 	} else {
-		return nil, ErrUnavailable
+		return DiscoveryResult{}, ErrUnavailable
 	}
-	return c.discoveryArticleLinks(response.Request.URL, links), nil
+	report, err := c.discoveryArticleReportContext(ctx, response.Request.URL, links)
+	report.UninspectedLinks += uninspectedLinks
+	return report, err
 }
 
 func discoveryFeedLinks(body []byte) ([]DiscoveredLink, error) {
@@ -173,33 +220,51 @@ var (
 )
 
 func (c *Client) discoveryArticleLinks(base *url.URL, links []DiscoveredLink) []DiscoveredLink {
-	result := []DiscoveredLink{}
+	return c.discoveryArticleReport(base, links).Links
+}
+
+func (c *Client) discoveryArticleReport(base *url.URL, links []DiscoveredLink) DiscoveryResult {
+	result, _ := c.discoveryArticleReportContext(context.Background(), base, links)
+	return result
+}
+
+func (c *Client) discoveryArticleReportContext(ctx context.Context, base *url.URL, links []DiscoveredLink) (DiscoveryResult, error) {
+	result := DiscoveryResult{Links: []DiscoveredLink{}, Rejected: []DiscoveryRejection{}}
 	seen := map[string]bool{}
-	for _, candidate := range links {
-		ref, err := url.Parse(strings.TrimSpace(candidate.URL))
-		if err != nil || strings.TrimSpace(candidate.URL) == "" {
+	for i, candidate := range links {
+		if err := ctx.Err(); err != nil {
+			result.UninspectedLinks = len(links) - i
+			return result, err
+		}
+		if i >= maxDiscoveryInspectedLinks {
+			result.UninspectedLinks = len(links) - i
+			break
+		}
+		result.InspectedLinks++
+		raw := strings.TrimSpace(candidate.URL)
+		if raw == "" || strings.HasPrefix(raw, "#") {
+			continue
+		}
+		ref, err := url.Parse(raw)
+		if err != nil {
 			continue
 		}
 		link := base.ResolveReference(ref)
-		link.Fragment = ""
-		if c.trustedURL(link) != nil || IsListingURL(link.String()) {
+		if link.Scheme != "https" && link.Scheme != "http" {
 			continue
+		}
+		link.Fragment, link.RawFragment = "", ""
+		trustErr := c.trustedURL(link)
+		if link.User != nil {
+			link.User = nil
+			link.RawQuery = ""
 		}
 		host := strings.TrimSuffix(strings.ToLower(link.Hostname()), ".")
-		isHost := func(domain string) bool { return host == domain || strings.HasSuffix(host, "."+domain) }
-		switch {
-		case isHost("securitylab.ru") && !securityLabArticlePath.MatchString(link.Path):
-			continue
-		case isHost("xakep.ru") && !xakepArticlePath.MatchString(link.Path):
-			continue
-		case isHost("habr.com") && !habrArticlePath.MatchString(link.Path):
-			continue
-		case isHost("ptsecurity.com") && !ptArticlePath.MatchString(link.Path):
-			continue
-		case isHost("kaspersky.ru") && !kasperskyArticlePath.MatchString(link.Path):
-			continue
+		if link.Port() == "" || link.Port() == "443" {
+			link.Host = host
+		} else {
+			link.Host = strings.ToLower(link.Host)
 		}
-		link.Host = host
 		query := link.Query()
 		for key := range query {
 			if strings.HasPrefix(strings.ToLower(key), "utm_") {
@@ -208,14 +273,51 @@ func (c *Client) discoveryArticleLinks(base *url.URL, links []DiscoveredLink) []
 		}
 		link.RawQuery = query.Encode()
 		address := link.String()
-		if seen[address] {
+		if len(address) > 2048 {
 			continue
 		}
-		seen[address] = true
-		result = append(result, DiscoveredLink{URL: address, PublishedAt: candidate.PublishedAt})
-		if len(result) == maxDiscoveredLinks {
-			break
+		key := address
+		if trustErr != nil {
+			key += "#untrusted"
 		}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		reject := func(code string) {
+			result.Rejected = append(result.Rejected, DiscoveryRejection{URL: address, Code: code})
+		}
+		if trustErr != nil {
+			reject("untrusted_url")
+			continue
+		}
+		if IsListingURL(address) {
+			reject("listing_page")
+			continue
+		}
+		isHost := func(domain string) bool { return host == domain || strings.HasSuffix(host, "."+domain) }
+		article := true
+		switch {
+		case isHost("securitylab.ru"):
+			article = securityLabArticlePath.MatchString(link.Path)
+		case isHost("xakep.ru"):
+			article = xakepArticlePath.MatchString(link.Path)
+		case isHost("habr.com"):
+			article = habrArticlePath.MatchString(link.Path)
+		case isHost("ptsecurity.com"):
+			article = ptArticlePath.MatchString(link.Path)
+		case isHost("kaspersky.ru"):
+			article = kasperskyArticlePath.MatchString(link.Path)
+		}
+		if !article {
+			reject("not_article_path")
+			continue
+		}
+		if len(result.Links) >= maxDiscoveredLinks {
+			reject("discovery_limit")
+			continue
+		}
+		result.Links = append(result.Links, DiscoveredLink{URL: address, PublishedAt: candidate.PublishedAt})
 	}
-	return result
+	return result, nil
 }

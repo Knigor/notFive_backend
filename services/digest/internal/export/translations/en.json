@@ -1,5 +1,16 @@
 {
   "extra_event": "The model added unselected group %s; it was not included in the files.",
   "unconfirmed_group": "Group %s requires source review; the model text was preserved without manual editing: %s.",
-  "length_limit": "File %s contains %d characters excluding URLs and formatting, exceeding the limit of %d; it needs shortening. The file was saved without truncation."
+  "length_limit": "File %s contains %d characters excluding URLs and formatting, exceeding the limit of %d; it needs shortening. The file was saved without truncation.",
+  "filtered_group": "Group %s: unsupported facts were omitted; verified facts were retained (%s).",
+  "excluded_group": "Group %s was excluded from the digest after source validation (%s).",
+  "no_verified_facts_reason": "The group facts could not be supported by source quotations.",
+  "unverified_contradiction_reason": "The contradiction sources could not be verified; the group was excluded to preserve the caveat.",
+  "no_selected_events": "No suitable events were selected for the period.",
+  "no_verified_events": "No suitable events with verifiable source facts remain.",
+  "invalid_source_reason": "The source could not be verified: unusable date, text or URL.",
+  "source_read_error": "The material was excluded because the source could not be read.",
+  "source_missing_text": "The material was excluded: source text is missing.",
+  "source_missing_date": "The material was excluded: the publication date could not be verified.",
+  "source_outside_period": "The material was excluded: publication date is outside (T−24h, T]."
 }

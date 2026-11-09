@@ -15,11 +15,11 @@ type Result struct {
 }
 
 type Prepared struct {
-	Request  Request
-	Input    string
-	Locale   string
-	issues   map[string][]string
-	excluded map[string]string
+	Request        Request
+	Input          string
+	Locale         string
+	EvidenceChecks []analysis.EvidenceCheck
+	issues         map[string][]string
 }
 
 type EventText struct {

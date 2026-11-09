@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace App\Run;
 
+use App\Dataset\DatasetFileReader;
+use App\Dataset\DatasetImportException;
 use App\Dataset\DatasetMaterial;
 use App\Digest\DigestBuilder;
 use App\Digest\DigestRepository;
 use App\Import\ImportRepository;
+use Monolog\Attribute\WithMonologChannel;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
+#[WithMonologChannel('digest_run')]
 final readonly class RunProcessor
 {
     public function __construct(
@@ -30,6 +34,7 @@ final readonly class RunProcessor
             return false;
         }
 
+        $this->logger->info('Digest run started.', ['runId' => $runId]);
         try {
             $run = $this->digests->run($runId) ?? throw new \UnexpectedValueException('Claimed run is missing.');
             $settings = json_decode((string) $run['settings_snapshot'], true, 512, JSON_THROW_ON_ERROR);
@@ -39,11 +44,12 @@ final readonly class RunProcessor
             if (!array_key_exists('dataset', $settings)) {
                 $this->collect($runId, $run, $settings);
             }
-            $this->builder->buildClaimed($runId);
+            $result = $this->builder->buildClaimed($runId);
+            $this->logger->info('Digest run completed.', ['runId' => $runId, 'eventCount' => $result['eventCount'], 'warningCount' => count($result['warnings'])]);
         } catch (\Throwable $exception) {
             $this->digests->fail($runId, 'run_processing_failed');
             $this->imports->failPendingInputs($runId);
-            $this->logger->error('Digest run failed.', ['runId' => $runId, 'exception' => $exception]);
+            $this->logger->error('Digest run failed.', ['runId' => $runId, 'errorType' => $exception::class]);
         }
 
         return true;
@@ -65,7 +71,7 @@ final readonly class RunProcessor
         if ([] !== $sites) {
             $payload['sites'] = $sites;
         }
-        $collection = $this->go->dispatch($payload) ?? throw new \RuntimeException('Go collection is not configured.');
+        $collection = $this->go->dispatch($payload, $runId) ?? throw new \RuntimeException('Go collection is not configured.');
         $this->imports->recordGoCollection($runId, $collection);
         $inputs = [];
         foreach ($this->imports->siteInputs($runId) as $input) {
@@ -77,11 +83,14 @@ final readonly class RunProcessor
                 $inputs[$host] = $this->imports->createInput($runId, 'site', $host, $site, null, 'pending');
             }
         }
+        $errors = [];
+        $imported = 0;
         foreach (GoCollection::articles($collection) as $article) {
             $url = $article['url'] ?? null;
             $host = is_string($url) ? (string) parse_url($url, PHP_URL_HOST) : '';
             $inputId = $this->inputForHost($host, $inputs);
             if (null === $inputId) {
+                $errors[] = $this->importError($article, 'source_host_mismatch');
                 continue;
             }
             $material = new DatasetMaterial(
@@ -90,13 +99,42 @@ final readonly class RunProcessor
                 $article['missing'] ?? [], $article['error'] ?? null,
             );
             if (0 !== count($this->validator->validate($material))) {
+                $errors[] = $this->importError($article, 'invalid_material');
                 continue;
             }
-            $this->imports->saveSearchMaterial($runId, $inputId, $material);
+            try {
+                if (is_string($material->publishedAt) && '' !== $material->publishedAt) {
+                    DatasetFileReader::parseTime($material->publishedAt);
+                }
+            } catch (DatasetImportException) {
+                $errors[] = $this->importError($article, 'invalid_publication_date');
+                continue;
+            }
+            if ($this->imports->saveSearchMaterial($runId, $inputId, $material)) {
+                ++$imported;
+            }
         }
+        $this->imports->recordCollectionImportErrors($runId, $errors);
+        $this->logger->info('Digest collection imported.', [
+            'runId' => $runId, 'collectionRunId' => $collection['runId'] ?? null,
+            'collected' => count(GoCollection::articles($collection)), 'imported' => $imported, 'importRejected' => count($errors),
+            'collectionExcluded' => is_array($collection['excluded'] ?? null) ? count($collection['excluded']) : 0,
+        ]);
         foreach ($inputs as $inputId) {
             $this->imports->updateInput($inputId, 'completed');
         }
+    }
+
+    /** @param array<string, mixed> $article
+     * @return array<string, mixed>
+     */
+    private function importError(array $article, string $reason): array
+    {
+        return [
+            'id' => is_string($article['id'] ?? null) && '' !== $article['id'] ? $article['id'] : 'import-'.substr(hash('sha256', json_encode($article, JSON_THROW_ON_ERROR)), 0, 16),
+            'url' => $article['url'] ?? null, 'title' => $article['title'] ?? null,
+            'reason' => $reason, 'error' => $reason,
+        ];
     }
 
     /** @param array<string, string> $inputs */

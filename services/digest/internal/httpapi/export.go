@@ -9,17 +9,20 @@ import (
 	"maps"
 	"net/http"
 
+	"github.com/Knigor/notFive_backend/services/digest/internal/analysis"
 	"github.com/Knigor/notFive_backend/services/digest/internal/collector"
 	"github.com/Knigor/notFive_backend/services/digest/internal/export"
 	"github.com/Knigor/notFive_backend/services/digest/internal/yandex"
 )
 
 type ExportAudit struct {
-	PromptVersion string               `json:"prompt_version"`
-	ModelInput    string               `json:"model_input"`
-	Generation    collector.Generation `json:"generation"`
-	Result        *export.Result       `json:"result,omitzero"`
-	FailureReason string               `json:"failure_reason,omitzero"`
+	EvidenceChecks    []analysis.EvidenceCheck `json:"evidence_checks,omitzero"`
+	ValidatedAnalysis *analysis.Result         `json:"validated_analysis,omitzero"`
+	PromptVersion     string                   `json:"prompt_version"`
+	ModelInput        string                   `json:"model_input"`
+	Generation        collector.Generation     `json:"generation"`
+	Result            *export.Result           `json:"result,omitzero"`
+	FailureReason     string                   `json:"failure_reason,omitzero"`
 }
 
 //go:embed translations/export_api.*.json
@@ -79,7 +82,7 @@ func (s *Server) createExport(w http.ResponseWriter, r *http.Request) {
 	run := s.newRun("export", input, export.Instructions)
 	run.Settings = maps.Clone(s.cfg.ExportSettings)
 	result, generation, err := export.Export(ctx, s.cfg.ExportProvider, prepared)
-	run.Export = &ExportAudit{PromptVersion: export.PromptVersion, ModelInput: prepared.Input, Generation: generation}
+	run.Export = &ExportAudit{PromptVersion: export.PromptVersion, ModelInput: prepared.Input, Generation: generation, EvidenceChecks: prepared.EvidenceChecks, ValidatedAnalysis: &prepared.Request.Analysis}
 	if err == nil {
 		run.Export.Result = &result
 	} else if response, ok := errors.AsType[*yandex.ResponseError](err); ok {

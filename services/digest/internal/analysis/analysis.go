@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -22,7 +23,7 @@ var (
 	ErrInvalidModelOutput = errors.New("invalid_model_output")
 )
 
-const MaxTextCharacters = 120000
+const MaxTextCharacters = 144000
 
 // Prepare validates the envelope and excludes articles with an unusable date or
 // text. This does not verify publisher metadata or semantic relevance again.
@@ -176,7 +177,8 @@ func inspectReferences(result *Result, prepared Prepared, warn func(string, ...a
 	for _, item := range prepared.Dataset.Items {
 		items[item.ID] = item
 	}
-	for groupID, group := range result.Groups {
+	for _, groupID := range slices.Sorted(maps.Keys(result.Groups)) {
+		group := result.Groups[groupID]
 		group.IDs = array(group.IDs)
 		group.Facts = array(group.Facts)
 		group.Contradictions = array(group.Contradictions)
@@ -201,7 +203,7 @@ func inspectReferences(result *Result, prepared Prepared, warn func(string, ...a
 				warn("group_and_excluded", id)
 			}
 		}
-		for _, fact := range group.Facts {
+		for factIndex, fact := range group.Facts {
 			if fact.Statement == "" || len(fact.SourceIDs) == 0 || len(fact.Evidence) == 0 {
 				warn("unverified_fact", groupID)
 			}
@@ -212,7 +214,15 @@ func inspectReferences(result *Result, prepared Prepared, warn func(string, ...a
 			}
 			for _, evidence := range fact.Evidence {
 				item, ok := items[evidence.ArticleID]
-				if !ok || evidence.Quote == "" || !slices.Contains(fact.SourceIDs, evidence.ArticleID) || !strings.Contains(stringValue(item.Text), evidence.Quote) {
+				match := MatchQuote(stringValue(item.Text), evidence.Quote)
+				check := EvidenceCheck{GroupID: groupID, FactIndex: factIndex + 1, ArticleID: evidence.ArticleID, ModelQuote: evidence.Quote, SourceQuote: match.SourceQuote, Match: match.Method, Transformations: match.Transformations}
+				if !ok || !slices.Contains(fact.SourceIDs, evidence.ArticleID) || !slices.Contains(group.IDs, evidence.ArticleID) {
+					check.Reason = "invalid_source_reference"
+				} else if match.Method == "unmatched" {
+					check.Reason = "quote_not_found"
+				}
+				result.EvidenceChecks = append(result.EvidenceChecks, check)
+				if check.Reason != "" {
 					warn("unverified_quote", groupID, evidence.ArticleID)
 				}
 			}

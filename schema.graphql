@@ -59,6 +59,36 @@ type RunStatus {
   startedAt: String
   finishedAt: String
   files: [String!]!
+  diagnostics: RunDiagnostics!
+}
+
+type RunDiagnostics {
+  collectionRunId: String
+  digestRunId: String
+  counts: RunDiagnosticCounts!
+  warnings: [String!]!
+  materials: [RunDiagnosticMaterial!]!
+}
+
+type RunDiagnosticCounts {
+  candidates: Int!
+  collected: Int!
+  imported: Int!
+  included: Int!
+  merged: Int!
+  excluded: Int!
+  events: Int!
+}
+
+type RunDiagnosticMaterial {
+  id: ID!
+  url: String
+  title: String
+  stage: String!
+  status: String!
+  group: String
+  reason: String
+  error: String
 }
 
 type Mutation {

@@ -135,6 +135,19 @@ final readonly class ImportRepository
         ]);
     }
 
+    /** @param list<array<string, mixed>> $errors */
+    public function recordCollectionImportErrors(string $runId, array $errors): void
+    {
+        $snapshot = $this->connection->fetchOne('SELECT settings_snapshot FROM runs WHERE id = :id', ['id' => $runId]);
+        $settings = json_decode((string) $snapshot, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($settings)) {
+            throw new \UnexpectedValueException('Invalid run settings.');
+        }
+        $settings['collection_import_errors'] = $errors;
+        $settings['collection_import_complete'] = true;
+        $this->connection->update('runs', ['settings_snapshot' => json_encode($settings, JSON_THROW_ON_ERROR)], ['id' => $runId]);
+    }
+
     public function saveDatasetError(string $inputId, int $rowNumber, ?string $materialId, string $error): void
     {
         $this->connection->executeStatement(<<<'SQL'

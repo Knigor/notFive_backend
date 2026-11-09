@@ -2,7 +2,6 @@ package news
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"maps"
 	"slices"
@@ -74,10 +73,7 @@ func parseHTML(reader io.Reader) (Article, error) {
 			articleBodies = append(articleBodies, node)
 		}
 	}
-	published, evidence, err := publicationDate(dates)
-	if err != nil {
-		return Article{}, err
-	}
+	published, evidence, dateErr := publicationDate(dates)
 	var selected *html.Node
 	var text string
 	for _, candidates := range [][]*html.Node{articleBodies, articles, mains, bodies} {
@@ -90,9 +86,6 @@ func parseHTML(reader io.Reader) (Article, error) {
 		if text != "" {
 			break
 		}
-	}
-	if text == "" {
-		return Article{}, ErrUnavailable
 	}
 	title := ogTitle
 	if title == "" && selected != nil {
@@ -111,37 +104,52 @@ func parseHTML(reader io.Reader) (Article, error) {
 	}
 	text, truncated := truncateRunes(text, maxTextRunes)
 	title, titleTruncated := truncateRunes(strings.Join(strings.Fields(title), " "), 500)
-	return Article{Title: title, Text: text, PublishedAt: published, DateEvidence: evidence, TextTruncated: truncated || titleTruncated}, nil
+	article := Article{Title: title, Text: text, PublishedAt: published, DateEvidence: evidence, TextTruncated: truncated || titleTruncated}
+	if dateErr != nil {
+		return article, dateErr
+	}
+	if text == "" {
+		return article, failure(ErrUnavailable, "empty_text", "")
+	}
+	return article, nil
 }
 
 func publicationDate(candidates []dateCandidate) (time.Time, string, error) {
 	if len(candidates) > 256 {
-		return time.Time{}, "", fmt.Errorf("%w: too many publication metadata entries", ErrUnknownDate)
+		return time.Time{}, "", failure(ErrUnknownDate, "publication_metadata_limit", "")
 	}
 	var published time.Time
-	var evidence []string
+	evidence := []string{}
 	for _, candidate := range candidates {
+		valueText := candidate.evidence
+		if len(valueText) > 500 {
+			valueText = valueText[:500]
+		}
+		if !slices.Contains(evidence, valueText) {
+			evidence = append(evidence, valueText)
+		}
 		value, err := parseExplicitDate(candidate.value)
 		if err != nil {
 			continue
 		}
 		if !published.IsZero() && !published.Equal(value) {
-			return time.Time{}, "", fmt.Errorf("%w: publication metadata conflicts", ErrUnknownDate)
+			return time.Time{}, strings.Join(evidence, "; "), failure(ErrUnknownDate, "publication_date_conflict", "")
 		}
 		published = value
-		if !slices.Contains(evidence, candidate.evidence) {
-			evidence = append(evidence, candidate.evidence)
-		}
 	}
 	if published.IsZero() {
-		return time.Time{}, "", ErrUnknownDate
+		code := "publication_date_missing"
+		if len(candidates) > 0 {
+			code = "publication_date_format_or_timezone"
+		}
+		return time.Time{}, strings.Join(evidence, "; "), failure(ErrUnknownDate, code, "")
 	}
 	return published, strings.Join(evidence, "; "), nil
 }
 
 func parseExplicitDate(value string) (time.Time, error) {
-	for _, layout := range []string{time.RFC3339Nano, "2006-01-02T15:04:05-0700", "2006-01-02 15:04:05-07:00"} {
-		if parsed, err := time.Parse(layout, value); err == nil {
+	for _, layout := range []string{time.RFC3339Nano, "2006-01-02T15:04:05-0700", "2006-01-02 15:04:05-07:00", "2006-01-02 15:04:05-0700", time.RFC1123Z} {
+		if parsed, err := time.Parse(layout, strings.TrimSpace(value)); err == nil {
 			return parsed, nil
 		}
 	}

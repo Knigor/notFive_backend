@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 	"time"
@@ -55,11 +56,15 @@ func (s *Server) PrepareDigest(ctx context.Context, input model.PrepareDigestInp
 		return nil, err
 	}
 	run.Analysis.Result = &analyzed
+	slog.Info("digest analysis completed", "run_id", run.ID, "groups", len(analyzed.Groups), "selected_groups", len(analyzed.RecommendedOrder), "duration_ms", analysisGeneration.DurationMS)
 	preparedDraft, err := export.Prepare(export.Request{Analysis: analyzed, News: dataset})
 	if err != nil {
+		run.Status, run.Error, run.CompletedAt = "failed", err.Error(), time.Now().UTC()
+		_ = s.save(run)
 		return nil, err
 	}
-	run.Export = &ExportAudit{PromptVersion: export.PromptVersion, ModelInput: preparedDraft.Input}
+	validated := preparedDraft.Request.Analysis
+	run.Export = &ExportAudit{PromptVersion: export.PromptVersion, ModelInput: preparedDraft.Input, EvidenceChecks: preparedDraft.EvidenceChecks, ValidatedAnalysis: &validated}
 	draftCtx, draftCancel := context.WithTimeout(ctx, s.cfg.Timeout)
 	draft, draftGeneration, err := export.Export(draftCtx, s.cfg.ExportProvider, preparedDraft)
 	draftCancel()
@@ -74,8 +79,10 @@ func (s *Server) PrepareDigest(ctx context.Context, input model.PrepareDigestInp
 	if err := s.save(run); err != nil {
 		return nil, fmt.Errorf("save digest audit: %w", err)
 	}
+	slog.Info("digest completed", "run_id", run.ID, "events", len(draft.Events), "excluded_materials", len(validated.Excluded), "evidence_checks", len(preparedDraft.EvidenceChecks), "warnings", len(draft.Warnings), "duration_ms", time.Since(run.CreatedAt).Milliseconds())
 	result := &model.PreparedDigest{
-		Groups: []*model.DigestGroup{}, RecommendedOrder: slices.Clone(analyzed.RecommendedOrder),
+		RunID:  run.ID,
+		Groups: []*model.DigestGroup{}, RecommendedOrder: slices.Clone(validated.RecommendedOrder),
 		Excluded: []*model.DigestExclusion{}, Events: []*model.DigestEvent{},
 		SelectionSummary: draft.SelectionSummary, Warnings: slices.Clone(draft.Warnings),
 		AnalysisModel: analysisGeneration.Model, DraftModel: draftGeneration.Model,
@@ -88,8 +95,8 @@ func (s *Server) PrepareDigest(ctx context.Context, input model.PrepareDigestInp
 	if len(draftGeneration.Usage) > 0 {
 		result.DraftUsageJSON = new(string(draftGeneration.Usage))
 	}
-	for _, id := range slices.Sorted(maps.Keys(analyzed.Groups)) {
-		group := analyzed.Groups[id]
+	for _, id := range slices.Sorted(maps.Keys(validated.Groups)) {
+		group := validated.Groups[id]
 		converted := &model.DigestGroup{ID: id, Name: group.Name, Ids: slices.Clone(group.IDs), Facts: []*model.DigestFact{}, Contradictions: []*model.DigestContradiction{}, SelectionReason: group.SelectionReason}
 		for _, fact := range group.Facts {
 			f := &model.DigestFact{Statement: fact.Statement, SourceIds: slices.Clone(fact.SourceIDs), Evidence: []*model.DigestEvidence{}}
@@ -103,8 +110,8 @@ func (s *Server) PrepareDigest(ctx context.Context, input model.PrepareDigestInp
 		}
 		result.Groups = append(result.Groups, converted)
 	}
-	for _, id := range slices.Sorted(maps.Keys(analyzed.Excluded)) {
-		result.Excluded = append(result.Excluded, &model.DigestExclusion{ArticleID: id, Reason: analyzed.Excluded[id]})
+	for _, id := range slices.Sorted(maps.Keys(validated.Excluded)) {
+		result.Excluded = append(result.Excluded, &model.DigestExclusion{ArticleID: id, Reason: validated.Excluded[id]})
 	}
 	for _, event := range draft.Events {
 		result.Events = append(result.Events, &model.DigestEvent{GroupID: event.GroupID, Title: event.Title, Summary: event.Summary, Consequences: event.Consequences, Post: event.Post, Reason: event.Reason})

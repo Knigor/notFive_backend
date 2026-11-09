@@ -35,6 +35,7 @@ final readonly class GoDigestResult
         public int $analysisDurationMs,
         #[Assert\PositiveOrZero]
         public int $draftDurationMs,
+        public ?string $runId = null,
     ) {
     }
 
@@ -56,6 +57,7 @@ final readonly class GoDigestResult
             self::optionalString($data, 'draftUsageJson'),
             self::integer($data, 'analysisDurationMs'),
             self::integer($data, 'draftDurationMs'),
+            self::optionalString($data, 'runId'),
         );
     }
 

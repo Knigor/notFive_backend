@@ -19,5 +19,5 @@
   "dataset_required": "A nonempty dataset name is required in news.json.",
   "items_required": "An items array is required in news.json; an empty array is allowed.",
   "invalid_article_ids": "Each material must have a nonempty, unique id.",
-  "analysis_input_too_large": "Eligible article text exceeds 120,000 characters; reduce the dataset."
+  "analysis_input_too_large": "Eligible article text exceeds 144,000 characters; reduce the dataset."
 }

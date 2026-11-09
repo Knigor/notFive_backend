@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/url"
 	"slices"
@@ -58,6 +59,7 @@ func (s *Server) Collect(ctx context.Context, input model.CollectInput) (*model.
 	if err != nil {
 		return nil, fmt.Errorf("collection %s failed: %w", run.ID, err)
 	}
+	logCollectionSummary(run)
 	return resultFromRun(run, input.Kind), nil
 }
 
@@ -116,6 +118,7 @@ func (s *Server) collectDataset(input model.CollectInput, control time.Time) (*m
 	if err := s.save(run); err != nil {
 		return nil, fmt.Errorf("save dataset: %w", err)
 	}
+	logCollectionSummary(run)
 	return &model.CollectResult{RunID: run.ID, Mode: model.InputKindDataset, Sites: []string{}, Articles: articles, Excluded: []*model.ExcludedArticle{}, Warnings: []string{}}, nil
 }
 
@@ -149,4 +152,18 @@ func deref(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+func logCollectionSummary(run Run) {
+	if run.Collection == nil {
+		return
+	}
+	searches := 0
+	if run.Research != nil {
+		searches = len(run.Research.SearchAttempts)
+	}
+	slog.Info("collection completed", "run_id", run.ID, "mode", run.Mode,
+		"candidates", run.Collection.Counts.Candidates, "accepted", run.Collection.Counts.Accepted,
+		"excluded", run.Collection.Counts.Excluded, "search_attempts", searches,
+		"warnings", len(run.Collection.Warnings), "duration_ms", time.Since(run.CreatedAt).Milliseconds())
 }

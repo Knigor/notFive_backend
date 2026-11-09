@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Digest;
 
+use App\Run\RunDiagnostics;
 use Doctrine\DBAL\Connection;
 
 final readonly class DigestRepository
 {
-    public function __construct(private Connection $connection)
+    public function __construct(private Connection $connection, private RunDiagnostics $diagnostics)
     {
     }
 
@@ -21,9 +22,9 @@ final readonly class DigestRepository
     }
 
     /** @return array<string, mixed>|null */
-    public function status(string $runId): ?array
+    public function status(string $runId, string $locale = 'ru'): ?array
     {
-        $run = $this->connection->fetchAssociative('SELECT id, status, error, created_at, started_at, finished_at FROM runs WHERE id = :id', ['id' => $runId]);
+        $run = $this->connection->fetchAssociative('SELECT id, status, error, created_at, started_at, finished_at, settings_snapshot FROM runs WHERE id = :id', ['id' => $runId]);
         if (false === $run) {
             return null;
         }
@@ -38,7 +39,29 @@ final readonly class DigestRepository
             'startedAt' => null === $run['started_at'] ? null : (new \DateTimeImmutable((string) $run['started_at']))->format(DATE_ATOM),
             'finishedAt' => null === $run['finished_at'] ? null : (new \DateTimeImmutable((string) $run['finished_at']))->format(DATE_ATOM),
             'files' => 4 === count($files) ? array_keys($files) : [],
+            'diagnostics' => $this->runDiagnostics($runId, $locale),
         ];
+    }
+
+    /** @return array<string, mixed> */
+    public function runDiagnostics(string $runId, string $locale = 'ru'): array
+    {
+        $run = $this->run($runId);
+
+        return $this->diagnostics->build(
+            RunDiagnostics::decode($run['settings_snapshot'] ?? null),
+            $this->materials($runId), $this->importErrors($runId),
+            (int) $this->connection->fetchOne('SELECT COUNT(*) FROM events WHERE run_id = :id', ['id' => $runId]),
+            $locale, 'completed' === ($run['status'] ?? null),
+        );
+    }
+
+    public function recordPreparation(string $runId, ?string $goRunId): void
+    {
+        $run = $this->run($runId);
+        $settings = RunDiagnostics::decode($run['settings_snapshot'] ?? null);
+        $settings['go_digest_run_id'] = $goRunId;
+        $this->connection->update('runs', ['settings_snapshot' => json_encode($settings, JSON_THROW_ON_ERROR)], ['id' => $runId]);
     }
 
     /** @return array<string, string> */
@@ -88,7 +111,7 @@ final readonly class DigestRepository
     public function importErrors(string $runId): array
     {
         return $this->connection->fetchAllAssociative(<<<'SQL'
-            SELECT die.row_number, die.input_id, die.error
+            SELECT die.id, die.row_number, die.input_id, die.error
             FROM dataset_import_errors die
             JOIN run_inputs ri ON ri.id = die.run_input_id
             WHERE ri.run_id = :run_id ORDER BY die.row_number, die.id

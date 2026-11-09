@@ -26,10 +26,7 @@ func IsListingURL(rawURL string) bool {
 	}
 	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
 	isHost := func(domain string) bool { return host == domain || strings.HasSuffix(host, "."+domain) }
-	if !isHost("securitylab.ru") && !isHost("xakep.ru") && !isHost("habr.com") && !isHost("ptsecurity.com") && !isHost("kaspersky.ru") {
-		return false
-	}
-	if p == "index.html" || p == "index.php" {
+	if (p == "index.html" || p == "index.php") && u.RawQuery == "" {
 		return true
 	}
 	parts := strings.Split(p, "/")
@@ -39,6 +36,26 @@ func IsListingURL(rawURL string) bool {
 		if p == "" {
 			return true
 		}
+	}
+	if slices.Contains([]string{"tag", "tags", "category", "categories", "theme", "themes"}, parts[0]) && len(parts) <= 2 {
+		return true
+	}
+	if slices.Contains([]string{"news", "security", "information_security", "kiberbezopasnost", "tech", "feed", "rss", "search", "login", "contacts", "about", "products"}, p) {
+		return true
+	}
+	knownSections := map[string][]string{
+		"infowatch.ru": {"analytics/novosti-ib"}, "infobezopasnost.ru": {"blog/news"},
+		"ict.moscow": {"projects/cybersecurity"}, "aif.ru": {"techno/web"},
+		"itweek.ru": {"security/article"}, "ixbt.com": {"live/security"},
+		"rg.ru": {"theme/technologies/internet/kiberbezopasnost"}, "rt-solar.ru": {"events/news"},
+	}
+	for domain, paths := range knownSections {
+		if isHost(domain) && slices.Contains(paths, p) {
+			return true
+		}
+	}
+	if len(parts) >= 2 && parts[0] == "news" && parts[1] == "categories" {
+		return true
 	}
 	switch {
 	case isHost("securitylab.ru"):

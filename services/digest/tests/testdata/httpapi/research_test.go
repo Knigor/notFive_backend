@@ -35,7 +35,7 @@ func TestResearchPublicationWindowAndModelIsolation(t *testing.T) {
 	calls := 0
 	provider := providerFunc(func(_ context.Context, instructions, input string) (collector.Generation, error) {
 		calls++
-		if calls != 1 || !strings.Contains(instructions, "web_search") || strings.Contains(input, "SOURCE_FACT_") {
+		if calls > 2 || !strings.Contains(instructions, "web_search") || strings.Contains(input, "SOURCE_FACT_") {
 			t.Fatal("collector should only request search candidates")
 		}
 		return collector.Generation{Text: string(raw), Trace: json.RawMessage(`{"output":[{"type":"web_search_call"}]}`)}, nil
@@ -54,7 +54,7 @@ func TestResearchPublicationWindowAndModelIsolation(t *testing.T) {
 		t.Fatalf("status %d: %s", response.Code, response.Body.String())
 	}
 	run := savedRunFromCollection(t, server, response)
-	if calls != 1 || run.Collection == nil || len(run.Collection.Articles) != 2 || len(run.Collection.ExcludedArticles) != 4 || len(run.Research.Sources) != 2 {
+	if calls != 2 || run.Collection == nil || len(run.Collection.Articles) != 2 || len(run.Collection.ExcludedArticles) != 4 || len(run.Research.Sources) != 2 {
 		t.Fatalf("wrong selection: calls=%d collection=%+v", calls, run.Collection)
 	}
 	for _, article := range run.Collection.Articles {
@@ -67,12 +67,12 @@ func TestResearchPublicationWindowAndModelIsolation(t *testing.T) {
 	}
 }
 
-func TestResearchOldForecastProducesEmptyCollectionWithoutSecondModelCall(t *testing.T) {
+func TestResearchOldForecastAllowsOneBoundedFollowup(t *testing.T) {
 	calls := 0
 	provider := providerFunc(func(_ context.Context, _, _ string) (collector.Generation, error) {
 		calls++
-		if calls != 1 {
-			t.Fatal("collection must not call the provider again for an old source")
+		if calls > 2 {
+			t.Fatal("collection must stop after one bounded followup")
 		}
 		return collector.Generation{Text: "OLD_ANNUAL_FORECAST_MUST_NOT_APPEAR", Trace: json.RawMessage(`{"output":[{"type":"web_search_call"},{"type":"message","content":[{"annotations":[{"type":"url_citation","url":"https://ptsecurity.com/research/old"}]}]}]}`)}, nil
 	})
@@ -89,7 +89,7 @@ func TestResearchOldForecastProducesEmptyCollectionWithoutSecondModelCall(t *tes
 		t.Fatalf("status %d: %s", response.Code, response.Body.String())
 	}
 	run := savedRunFromCollection(t, server, response)
-	if calls != 1 || run.Collection == nil || len(run.Collection.Articles) != 0 || len(run.Collection.ExcludedArticles) != 1 || len(run.Research.ExcludedSources) != 1 {
+	if calls != 2 || run.Collection == nil || len(run.Collection.Articles) != 0 || len(run.Collection.ExcludedArticles) != 1 || len(run.Research.ExcludedSources) != 1 {
 		t.Fatalf("wrong empty collection: %+v", run)
 	}
 }

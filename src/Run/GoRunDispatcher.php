@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Run;
 
+use Monolog\Attribute\WithMonologChannel;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
+#[WithMonologChannel('digest_run')]
 final readonly class GoRunDispatcher
 {
     private const DOCUMENT = <<<'GRAPHQL'
@@ -27,6 +29,7 @@ final readonly class GoRunDispatcher
     private const PREPARE_DOCUMENT = <<<'GRAPHQL'
         mutation PrepareDigest($input: PrepareDigestInput!) {
           prepareDigest(input: $input) {
+            runId
             groups { id name ids selectionReason facts { statement sourceIds evidence { articleId quote } } contradictions { description sourceIds } }
             recommendedOrder
             excluded { articleId reason }
@@ -49,7 +52,7 @@ final readonly class GoRunDispatcher
     /** @param list<array<string, mixed>> $items
      * @return array<string, mixed>
      */
-    public function prepareDigest(string $controlTime, array $items): array
+    public function prepareDigest(string $controlTime, array $items, ?string $runId = null): array
     {
         if ('' === $this->goServiceUrl || '' === $this->digestServiceToken) {
             throw new \RuntimeException('Go digest service is not configured.');
@@ -67,8 +70,9 @@ final readonly class GoRunDispatcher
             if (200 === $response->getStatusCode() && is_array($body) && [] === ($body['errors'] ?? []) && is_array($body['data']['prepareDigest'] ?? null)) {
                 return $body['data']['prepareDigest'];
             }
+            $this->logger->warning('Go digest preparation returned an invalid response.', ['runId' => $runId, 'status' => $response->getStatusCode()]);
         } catch (TransportExceptionInterface|\JsonException $exception) {
-            $this->logger->warning('Go digest preparation failed.', ['exception' => $exception]);
+            $this->logger->warning('Go digest preparation failed.', ['runId' => $runId, 'errorType' => $exception::class]);
         }
 
         throw new \RuntimeException('go_digest_failed');
@@ -77,7 +81,7 @@ final readonly class GoRunDispatcher
     /** @param array<string, mixed> $input
      * @return array<string, mixed>|null
      */
-    public function dispatch(array $input): ?array
+    public function dispatch(array $input, ?string $runId = null): ?array
     {
         if ('' === $this->goServiceUrl || '' === $this->digestServiceToken) {
             return null;
@@ -98,11 +102,11 @@ final readonly class GoRunDispatcher
             }
 
             $this->logger->warning('Go GraphQL service rejected collection with HTTP {status}.', [
-                'status' => $response->getStatusCode(),
+                'runId' => $runId, 'status' => $response->getStatusCode(),
             ]);
         } catch (TransportExceptionInterface|\JsonException $exception) {
             $this->logger->warning('Go GraphQL service did not return a valid collection.', [
-                'exception' => $exception,
+                'runId' => $runId, 'errorType' => $exception::class,
             ]);
         }
 

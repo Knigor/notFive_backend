@@ -16,7 +16,7 @@ func TestResearchCandidatesAcceptsJSONAndWholeMarkdownFence(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			research := Research{CitationURLs: []string{"https://xakep.ru/"}}
 			candidates := researchCandidates(input, &research)
-			if len(candidates) != 1 || candidates[0].URL != "https://habr.com/ru/news/1105010/" || len(research.Warnings) != 0 {
+			if len(candidates) != 2 || candidates[0].URL != "https://habr.com/ru/news/1105010/" || candidates[1].URL != "https://xakep.ru/" || len(research.Warnings) != 0 {
 				t.Fatalf("valid JSON used fallback: candidates=%+v warnings=%v", candidates, research.Warnings)
 			}
 		})
@@ -33,7 +33,7 @@ func TestResearchCandidatesRealMarkdownResponseKeepsFourModelURLs(t *testing.T) 
 		"https://habr.com/ru/news/top/daily/", "https://ptsecurity.com/about/news/",
 	}}
 	candidates := researchCandidates("```\n"+payload+"\n```", &research)
-	if len(candidates) != 4 || len(research.Warnings) != 0 {
+	if len(candidates) != 7 || len(research.Warnings) != 0 {
 		t.Fatalf("expected the model's four URLs without annotation fallback: %+v / %v", candidates, research.Warnings)
 	}
 	if candidates[1].URL != "https://xakep.ru/tag/news/" || candidates[0].Title == "" {
@@ -41,10 +41,10 @@ func TestResearchCandidatesRealMarkdownResponseKeepsFourModelURLs(t *testing.T) 
 	}
 }
 
-func TestResearchCandidatesEmptyArrayDoesNotUseAnnotations(t *testing.T) {
+func TestResearchCandidatesEmptyArrayStillChecksAnnotatedURLs(t *testing.T) {
 	for _, input := range []string{`{"candidates":[]}`, "```json\n{\"candidates\":[]}\n```"} {
 		research := Research{CitationURLs: []string{"https://xakep.ru/"}}
-		if candidates := researchCandidates(input, &research); len(candidates) != 0 || len(research.Warnings) != 0 {
+		if candidates := researchCandidates(input, &research); len(candidates) != 1 || len(research.Warnings) != 0 {
 			t.Fatalf("explicit empty result replaced with annotations: %+v / %v", candidates, research.Warnings)
 		}
 	}

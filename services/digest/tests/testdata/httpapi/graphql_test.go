@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -87,7 +89,7 @@ func TestGraphQLPrepareDigestReturnsStructuredFields(t *testing.T) {
 	gql := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{Collector: server}}))
 	gql.AddTransport(transport.POST{})
 	server.MountGraphQL(gql)
-	query := `mutation($input: PrepareDigestInput!) { prepareDigest(input:$input) { groups { id ids facts { evidence { articleId quote } } } recommendedOrder excluded { articleId reason } events { groupId title post } analysisPromptVersion draftPromptVersion } }`
+	query := `mutation($input: PrepareDigestInput!) { prepareDigest(input:$input) { runId groups { id ids facts { evidence { articleId quote } } } recommendedOrder excluded { articleId reason } events { groupId title post } analysisPromptVersion draftPromptVersion } }`
 	input := map[string]any{"controlTime": "2026-11-08T10:00:00Z", "items": []map[string]any{{"id": "A-1", "title": "Test", "text": pipelineTestText, "source": "Test source", "url": pipelineTestURL, "publishedAt": "2026-11-08T10:00:00Z", "missing": []string{}}}}
 	body, err := json.Marshal(map[string]any{"query": query, "variables": map[string]any{"input": input}})
 	if err != nil {
@@ -97,6 +99,7 @@ func TestGraphQLPrepareDigestReturnsStructuredFields(t *testing.T) {
 	var result struct {
 		Data struct {
 			PrepareDigest struct {
+				RunID  string `json:"runId"`
 				Groups []struct {
 					ID  string   `json:"id"`
 					IDs []string `json:"ids"`
@@ -115,6 +118,12 @@ func TestGraphQLPrepareDigestReturnsStructuredFields(t *testing.T) {
 	}
 	if !slices.Equal(*calls, []string{"analysis", "export"}) || !slices.Equal(result.Data.PrepareDigest.RecommendedOrder, []string{"G1"}) || len(result.Data.PrepareDigest.Groups) != 1 || !slices.Equal(result.Data.PrepareDigest.Groups[0].IDs, []string{"A-1"}) || len(result.Data.PrepareDigest.Events) != 1 || result.Data.PrepareDigest.Events[0].Post == "" {
 		t.Fatalf("structured draft lost source links or prose: %s", response.Body.String())
+	}
+	if result.Data.PrepareDigest.RunID == "" {
+		t.Fatal("prepareDigest omitted its audit ID")
+	}
+	if _, err := os.Stat(filepath.Join(server.cfg.DataDir, "runs", result.Data.PrepareDigest.RunID+".json")); err != nil {
+		t.Fatalf("audit ID does not resolve to saved run: %v", err)
 	}
 	if strings.Contains(response.Body.String(), `"files"`) {
 		t.Fatal("GraphQL returned ready files")

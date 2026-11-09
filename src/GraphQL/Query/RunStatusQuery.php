@@ -24,9 +24,9 @@ final readonly class RunStatusQuery implements QueryInterface
             return null;
         }
 
-        $status = $this->repository->status($runId);
+        $locale = $this->requestStack->getCurrentRequest()?->getPreferredLanguage(['ru', 'en']) ?? 'ru';
+        $status = $this->repository->status($runId, $locale);
         if (null !== $status && null !== $status['error']) {
-            $locale = $this->requestStack->getCurrentRequest()?->getPreferredLanguage(['ru', 'en']) ?? 'ru';
             $status['error'] = $this->translator->trans('run_status.failed', locale: $locale);
         }
 

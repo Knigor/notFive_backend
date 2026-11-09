@@ -96,7 +96,7 @@ func TestResearchDiscoveryPrioritizesFreshFeedAndStillVerifiesHTMLDate(t *testin
 		t.Fatalf("discovery request failed: %d %s", response.Code, response.Body.String())
 	}
 	run := savedRunFromCollection(t, server, response)
-	if searchCalls != 1 || len(fetched) != 12 || len(run.Collection.Articles) != 4 {
+	if searchCalls != 2 || len(fetched) != 17 || len(run.Collection.Articles) != 4 {
 		t.Fatalf("bad prioritization: search=%d fetched=%v articles=%+v", searchCalls, fetched, run.Collection.Articles)
 	}
 	for _, expected := range []string{article("upper"), article("inside"), article("unknown"), habr} {

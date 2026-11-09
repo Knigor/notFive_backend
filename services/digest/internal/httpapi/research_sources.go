@@ -2,8 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"net/url"
 	"slices"
@@ -53,13 +51,22 @@ func (s *Server) fetchResearchSources(ctx context.Context, candidates []searchCa
 	articles := make([]collector.Article, len(candidates))
 	sources := make([]ResearchSource, len(candidates))
 	finalURLs := map[string]bool{}
+	for _, previous := range research.Sources {
+		finalURLs[previous.URL] = true
+	}
 	for i, candidate := range candidates {
-		hash := sha256.Sum256([]byte(candidate.URL))
-		id := "web-" + hex.EncodeToString(hash[:8])
+		id := candidateID(candidate.URL)
 		source := ResearchSource{ID: id, RequestedURL: clipResearchText(candidate.URL, 2048), URL: clipResearchText(candidate.URL, 2048), Title: candidate.Title, Status: "excluded"}
 		page, err := outcomes[i].page, outcomes[i].err
+		source.Stage = "fetch"
+		source.TextTruncated = page.TextTruncated
+		source.TextCharacters = utf8.RuneCountInString(page.Text)
+		source.DateEvidence = clipResearchText(page.DateEvidence, 2000)
+		if page.Title != "" {
+			source.Title = clipResearchText(page.Title, 500)
+		}
 		if err != nil {
-			source.Reason = sourceErrorReason(err)
+			source.Reason, source.Error = sourceErrorReason(err), news.ErrorCode(err)
 		} else {
 			source.URL, err = researchSourceURL(page.URL, s.cfg.SearchDomains)
 			source.Title = clipResearchText(page.Title, 500)
@@ -71,19 +78,24 @@ func (s *Server) fetchResearchSources(ctx context.Context, candidates []searchCa
 			}
 			switch {
 			case err != nil:
-				source.Reason = sourceErrorReason(err)
+				source.Reason, source.Error = sourceErrorReason(err), news.ErrorCode(err)
 			case news.IsListingURL(source.URL):
-				source.Reason = sourceErrorReason(news.ErrListingPage)
+				source.Reason, source.Error = sourceErrorReason(news.ErrListingPage), "listing_page"
 			case page.PublishedAt.IsZero():
 				source.Reason = "Дата публикации неизвестна или не имеет подтверждённого часового пояса."
+				source.Error = "publication_date_unconfirmed"
 			case !page.PublishedAt.After(control.Add(-24 * time.Hour)):
 				source.Reason = "Публикация не новее нижней границы окна (T-24h, T]."
+				source.Error = "outside_period"
 			case page.PublishedAt.After(control):
 				source.Reason = "Публикация позднее контрольного времени T."
+				source.Error = "after_control_time"
 			case strings.TrimSpace(page.Text) == "" || strings.TrimSpace(source.Title) == "":
 				source.Reason = "Недостаточно текста или отсутствует заголовок исходной публикации."
+				source.Error = "missing_text_or_title"
 			case finalURLs[source.URL]:
 				source.Reason = "Другой кандидат уже привёл к этой публикации после перенаправления."
+				source.Error = "redirect_duplicate"
 			default:
 				source.Status = "eligible"
 				finalURLs[source.URL] = true
@@ -100,6 +112,11 @@ func (s *Server) fetchResearchSources(ctx context.Context, candidates []searchCa
 			article.Text = page.Text
 		}
 		articles[i], sources[i] = article, source
+		status := "excluded"
+		if source.Status == "eligible" {
+			status = "accepted"
+		}
+		research.recordCandidate(candidate.URL, "fetch", status, source.Reason, source.Error)
 	}
 	// Preserve every considered article, including exclusion reasons, in the audit.
 	for i := range sources {
@@ -133,6 +150,27 @@ func researchSourceURL(raw string, domains []string) (string, error) {
 }
 
 func sourceErrorReason(err error) string {
+	code := news.ErrorCode(err)
+	messages := map[string]string{
+		"publication_date_missing":            "В HTML отсутствуют метаданные исходной даты публикации.",
+		"publication_date_format_or_timezone": "Дата публикации имеет неподдержанный формат или не содержит явного часового пояса.",
+		"publication_date_conflict":           "Метаданные страницы содержат разные даты публикации.",
+		"publication_metadata_limit":          "Слишком много метаданных дат на странице; дата не подтверждена.",
+		"request_timeout":                     "Превышено время ожидания публикации.",
+		"transport_error":                     "Не удалось установить соединение с источником.",
+		"body_too_large":                      "Ответ источника превышает лимит 2 МиБ.",
+		"body_read_error":                     "Не удалось прочитать тело ответа источника.",
+		"unsupported_content_type":            "Источник вернул документ вместо поддерживаемого HTML.",
+		"unsupported_charset":                 "Не удалось определить кодировку публикации.",
+		"empty_text":                          "В HTML не найден содержательный текст публикации.",
+		"redirect_limit":                      "Превышен лимит перенаправлений источника.",
+	}
+	if message := messages[code]; message != "" {
+		return message
+	}
+	if status, found := strings.CutPrefix(code, "http_status_"); found {
+		return "Источник вернул HTTP " + status + "."
+	}
 	switch {
 	case errors.Is(err, news.ErrListingPage):
 		return "Главная страница или раздел сайта, а не отдельная публикация."

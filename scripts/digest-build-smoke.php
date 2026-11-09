@@ -8,6 +8,7 @@ use App\Digest\DigestRenderer;
 use App\Digest\DigestRepository;
 use App\Import\ImportRepository;
 use App\Run\GoRunDispatcher;
+use App\Run\RunDiagnostics;
 use App\Run\RunProcessor;
 use Doctrine\DBAL\DriverManager;
 use Psr\Log\AbstractLogger;
@@ -49,6 +50,7 @@ foreach ([
     ]);
 }
 $response = [
+    'runId' => 'go-digest-test',
     'groups' => [[
         'id' => 'G1', 'name' => 'Исправление уязвимости', 'ids' => ['A-1'],
         'selectionReason' => 'Есть подтверждённое исправление.',
@@ -81,7 +83,24 @@ $client = new MockHttpClient(static function (string $method, string $url, array
             ['id' => 'A-2', 'title' => 'Материал без даты', 'text' => 'Дата публикации не указана.', 'source' => 'Example', 'url' => 'https://example.org/a-2', 'publishedAt' => null, 'missing' => [], 'error' => null],
         ];
 
-        return new MockResponse(json_encode(['data' => ['collect' => ['sites' => ['https://example.org'], 'articles' => $articles]]], JSON_THROW_ON_ERROR), ['http_code' => 200]);
+        $articles[] = [...$articles[0], 'id' => 'BAD-HOST', 'url' => 'https://another.example/foreign'];
+        $articles[] = [...$articles[0], 'id' => 'BAD-FIELD', 'title' => ['invalid'], 'url' => 'https://example.org/bad-field'];
+        $articles[] = [...$articles[0], 'id' => 'BAD-DATE', 'publishedAt' => 'yesterday', 'url' => 'https://example.org/bad-date'];
+        $collection = [
+            'runId' => 'go-collection-test', 'sites' => ['https://example.org'], 'articles' => $articles,
+            'excluded' => [['id' => 'REJECT-1', 'url' => 'https://example.org/old', 'reason' => 'За пределами периода.']],
+            'warnings' => ['collection warning'],
+            'researchJson' => json_encode([
+                'candidate_audit' => [
+                    ['id' => 'REJECT-1', 'url' => 'https://example.org/old', 'status' => 'excluded', 'reason' => 'За пределами периода.', 'error' => 'outside_period'],
+                    ['id' => 'LIMIT-1', 'url' => 'https://example.org/limit', 'status' => 'not_processed', 'reason' => 'Достигнут лимит.', 'error' => 'fetch_limit'],
+                ],
+                'rejected_candidates' => [['url' => 'https://example.org/tags', 'reason' => 'Страница раздела.']],
+                'citation_urls' => ['https://example.org/old', 'https://example.org/a-1#section', 'https://example.org/unprocessed'],
+            ], JSON_THROW_ON_ERROR),
+        ];
+
+        return new MockResponse(json_encode(['data' => ['collect' => $collection]], JSON_THROW_ON_ERROR), ['http_code' => 200]);
     }
     $output = $response;
     if ([] === $request['variables']['input']['items']) {
@@ -98,8 +117,8 @@ $translator = new Translator('ru');
 $translator->addLoader('yaml', new YamlFileLoader());
 $translator->addResource('yaml', dirname(__DIR__).'/translations/messages.ru.yaml', 'ru');
 $translator->addResource('yaml', dirname(__DIR__).'/translations/messages.en.yaml', 'en');
-$repository = new DigestRepository($connection);
-$builder = new DigestBuilder($repository, new GoRunDispatcher($client, new NullLogger(), 'http://digest', 'test-token'), new DigestRenderer($repository, $translator), $connection, Validation::createValidatorBuilder()->enableAttributeMapping()->getValidator(), $translator);
+$repository = new DigestRepository($connection, new RunDiagnostics($translator));
+$builder = new DigestBuilder($repository, new GoRunDispatcher($client, new NullLogger(), 'http://digest', 'test-token'), new DigestRenderer($repository, $translator), $connection, Validation::createValidatorBuilder()->enableAttributeMapping()->getValidator(), $translator, new NullLogger());
 $logger = new class extends AbstractLogger {
     public function log($level, string|Stringable $message, array $context = []): void
     {
@@ -139,6 +158,57 @@ assert(null !== $siteStatus && 'completed' === $siteStatus['status']);
 assert(4 === count($siteStatus['files']));
 assert(2 === (int) $connection->fetchOne('SELECT COUNT(*) FROM materials WHERE run_id = :id', ['id' => $siteRunId]));
 assert('completed' === $connection->fetchOne("SELECT status FROM run_inputs WHERE id = 'input-3'"));
+$diagnostics = $siteStatus['diagnostics'];
+assert('go-collection-test' === $diagnostics['collectionRunId']);
+assert('go-digest-test' === $diagnostics['digestRunId']);
+assert(['candidates' => 9, 'collected' => 5, 'imported' => 2, 'included' => 1, 'merged' => 0, 'excluded' => 8, 'events' => 1] === $diagnostics['counts']);
+assert(['collection warning'] === $diagnostics['warnings']);
+$rows = array_column($diagnostics['materials'], null, 'id');
+assert('source_host_mismatch' === $rows['BAD-HOST']['error']);
+assert('invalid_material' === $rows['BAD-FIELD']['error']);
+assert('invalid_publication_date' === $rows['BAD-DATE']['error']);
+assert('outside_period' === $rows['REJECT-1']['error']);
+assert('collection' === $rows['LIMIT-1']['stage']);
+assert('excluded' === $rows['LIMIT-1']['status']);
+$siteCsv = $repository->artifacts($siteRunId)['journal.csv'];
+assert(10 === count(explode("\n", trim($siteCsv))));
+assert(1 === substr_count($siteCsv, 'REJECT-1;'));
+assert(str_contains($siteCsv, 'BAD-DATE;исключён'));
+assert(str_contains($siteCsv, 'not_processed'));
+$oldDiagnostics = (new RunDiagnostics($translator))->build([
+    'go_collection' => ['researchJson' => '{"citation_urls":["https://example.org/unknown"],"rejected_candidates":[{"url":"https://example.org/old","reason":"Old exclusion"}]}'],
+], [], [], 0, 'en');
+assert(null === $oldDiagnostics['collectionRunId'] && null === $oldDiagnostics['digestRunId']);
+assert(2 === $oldDiagnostics['counts']['excluded']);
+assert(str_contains($oldDiagnostics['materials'][1]['reason'], 'not processed'));
+$brokenAudit = (new RunDiagnostics($translator))->build(['go_collection' => ['researchJson' => '{broken']], [], [], 0);
+assert(0 === $brokenAudit['counts']['candidates']);
+assert([] === $brokenAudit['materials']);
+$sameUrlMaterials = $repository->materials($siteRunId);
+$sameUrlMaterials[1]['url'] = $sameUrlMaterials[0]['url'];
+$sameUrlAudit = (new RunDiagnostics($translator))->build([], $sameUrlMaterials, [], 1);
+assert(2 === count($sameUrlAudit['materials']));
+$legacyUrls = ['https://example.org/a-1'];
+$legacyExcluded = [];
+for ($index = 1; $index <= 20; ++$index) {
+    $url = 'https://example.org/legacy-'.$index;
+    $legacyUrls[] = $url;
+    if ($index <= 11) {
+        $legacyExcluded[] = ['id' => 'LEGACY-'.$index, 'url' => $url, 'reason' => 'Дата не подтверждена.'];
+    }
+}
+$legacyAudit = (new RunDiagnostics($translator))->build([
+    'go_collection' => ['articles' => [['id' => 'A-1', 'url' => $legacyUrls[0]]], 'excluded' => $legacyExcluded, 'researchJson' => json_encode(['citation_urls' => $legacyUrls], JSON_THROW_ON_ERROR)],
+], [$repository->materials($siteRunId)[0]], [], 1, 'ru', true);
+assert(21 === $legacyAudit['counts']['candidates']);
+assert(20 === $legacyAudit['counts']['excluded']);
+assert(9 === count(array_filter($legacyAudit['materials'], static fn (array $row): bool => 'not_processed' === $row['error'])));
+$escapedUrls = (new RunDiagnostics($translator))->build(['go_collection' => ['researchJson' => json_encode(['citation_urls' => ['https://example.org/a%2Fb', 'https://example.org/a/b']], JSON_THROW_ON_ERROR)]], [], [], 0);
+assert(2 === $escapedUrls['counts']['candidates']);
+$missingImport = (new RunDiagnostics($translator))->build(['go_collection' => ['articles' => [['id' => 'LOST', 'url' => 'https://example.org/lost']]]], [], [], 0, 'ru', true);
+assert('excluded' === $missingImport['materials'][0]['status']);
+assert('collection_material_missing' === $missingImport['materials'][0]['error']);
+
 $defaultRunId = '00000000-0000-4000-8000-000000000005';
 $connection->insert('runs', ['id' => $defaultRunId, 'control_time' => '2026-11-06T10:00:00+03:00', 'status' => 'queued', 'settings_snapshot' => '{"source_urls":[]}', 'created_at' => '2026-11-06T10:02:30+03:00']);
 $processor->processNext();

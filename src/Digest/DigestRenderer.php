@@ -82,18 +82,14 @@ final readonly class DigestRenderer
         }
         fwrite($stream, "\xEF\xBB\xBF");
         fputcsv($stream, ['id', 'status', 'group', 'reason', 'error'], ';', '"', '');
-        foreach ($this->repository->materials($runId) as $material) {
-            $status = (string) ($material['journal_status'] ?? 'excluded');
+        $diagnostics = $this->repository->runDiagnostics($runId);
+        foreach ($diagnostics['materials'] as $material) {
+            if ('pending' === $material['status']) {
+                continue;
+            }
             fputcsv($stream, [
-                $material['input_id'], $this->trans('digest_export.status.'.$status),
-                $material['journal_group'] ?? '', $material['journal_reason'] ?? '',
-                $material['journal_error'] ?? $material['source_error'] ?? '',
-            ], ';', '"', '');
-        }
-        foreach ($this->repository->importErrors($runId) as $error) {
-            fputcsv($stream, [
-                $error['input_id'] ?? '', $this->trans('digest_export.status.excluded'), '',
-                $this->trans('digest_export.import_error'), $error['error'],
+                $material['id'], $this->trans('digest_export.status.'.$material['status']),
+                $material['group'] ?? '', $material['reason'] ?? '', $material['error'] ?? '',
             ], ';', '"', '');
         }
         rewind($stream);

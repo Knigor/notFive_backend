@@ -49,8 +49,11 @@ func decodeNewsDataset(t *testing.T, response *httptest.ResponseRecorder) NewsDa
 	}
 	for _, item := range items {
 		fields := requireJSONKeys(t, item, "id", "title", "text", "source", "url", "published_at", "missing", "error")
-		if string(fields["error"]) != "null" || string(fields["missing"]) != "[]" {
-			t.Errorf("accepted item must contain explicit error:null and missing:[]: %s", item)
+		if string(fields["error"]) == "null" && string(fields["missing"]) != "[]" {
+			t.Errorf("accepted item has unexpected missing fields: %s", item)
+		}
+		if string(fields["error"]) != "null" && string(fields["text"]) != "null" {
+			t.Errorf("excluded material must not be presented as usable text: %s", item)
 		}
 	}
 	var dataset NewsDataset

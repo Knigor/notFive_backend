@@ -130,3 +130,12 @@ digest_export:
     invalid_run_id: 'Invalid run ID.'
     build_failed: 'Could not build the digest. Check application logs and run status.'
     built: 'Digest %run_id% built. Events: %events%.'
+
+run_diagnostics:
+    not_processed: 'The search found this URL, but it was not processed or added to candidates.'
+    source_host_mismatch: 'The article host does not match the selected sources.'
+    invalid_material: 'The material was skipped because its fields are invalid.'
+    invalid_publication_date: 'The material was skipped because its publication date is invalid.'
+    collection_excluded: 'The material was excluded during collection.'
+    collection_material_missing: 'Collection returned this material, but it was not saved for analysis; the older run has no recorded reason.'
+    missing_analysis_decision: 'The run completed without a saved decision for this material.'

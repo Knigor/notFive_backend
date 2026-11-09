@@ -31,6 +31,7 @@ type Result struct {
 	RecommendedOrder []string          `json:"recommended_order"`
 	Excluded         map[string]string `json:"excluded"`
 	Warnings         []string          `json:"warnings"`
+	EvidenceChecks   []EvidenceCheck   `json:"evidence_checks,omitzero"`
 }
 
 type Group struct {

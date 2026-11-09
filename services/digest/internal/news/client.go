@@ -61,7 +61,7 @@ func New(domains []string) *Client {
 	}
 	c.http = &http.Client{Transport: transport, Timeout: 12 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 5 {
-			return fmt.Errorf("%w: redirect limit", ErrUnavailable)
+			return failure(ErrUnavailable, "redirect_limit", "")
 		}
 		return c.trustedURL(req.URL)
 	}}
@@ -91,18 +91,33 @@ func (c *Client) Fetch(ctx context.Context, rawURL string) (Article, error) {
 		if ctx.Err() != nil {
 			return Article{}, errors.Join(ErrUnavailable, ctx.Err())
 		}
-		return Article{}, ErrUnavailable
+		if detail, ok := errors.AsType[*SourceError](err); ok {
+			return Article{}, detail
+		}
+		if timed, ok := errors.AsType[interface {
+			error
+			Timeout() bool
+		}](err); ok && timed.Timeout() {
+			return Article{}, failure(ErrUnavailable, "request_timeout", "")
+		}
+		return Article{}, failure(ErrUnavailable, "transport_error", "")
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK || response.ContentLength > maxBodyBytes {
-		return Article{}, ErrUnavailable
+	if response.StatusCode != http.StatusOK {
+		return Article{}, failure(ErrUnavailable, fmt.Sprintf("http_status_%d", response.StatusCode), "")
+	}
+	if response.ContentLength > maxBodyBytes {
+		return Article{}, failure(ErrUnavailable, "body_too_large", "")
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, maxBodyBytes+1))
 	if err != nil || len(body) > maxBodyBytes {
 		if ctx.Err() != nil {
 			return Article{}, errors.Join(ErrUnavailable, ctx.Err())
 		}
-		return Article{}, ErrUnavailable
+		if len(body) > maxBodyBytes {
+			return Article{}, failure(ErrUnavailable, "body_too_large", "")
+		}
+		return Article{}, failure(ErrUnavailable, "body_read_error", "")
 	}
 	contentType := response.Header.Get("Content-Type")
 	if contentType == "" {
@@ -110,18 +125,15 @@ func (c *Client) Fetch(ctx context.Context, rawURL string) (Article, error) {
 	}
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil || (mediaType != "text/html" && mediaType != "application/xhtml+xml") {
-		return Article{}, ErrUnavailable
+		return Article{}, failure(ErrUnavailable, "unsupported_content_type", "")
 	}
 	reader, err := charset.NewReader(bytes.NewReader(body), contentType)
 	if err != nil {
-		return Article{}, ErrUnavailable
+		return Article{}, failure(ErrUnavailable, "unsupported_charset", "")
 	}
 	article, err := parseHTML(reader)
-	if err != nil {
-		return Article{}, err
-	}
 	article.URL = response.Request.URL.String()
-	return article, nil
+	return article, err
 }
 
 func (c *Client) trustedURL(u *url.URL) error {

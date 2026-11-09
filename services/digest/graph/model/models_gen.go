@@ -104,6 +104,7 @@ type PrepareDigestInput struct {
 }
 
 type PreparedDigest struct {
+	RunID                 string             `json:"runId"`
 	Groups                []*DigestGroup     `json:"groups"`
 	RecommendedOrder      []string           `json:"recommendedOrder"`
 	Excluded              []*DigestExclusion `json:"excluded"`

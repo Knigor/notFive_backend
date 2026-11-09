@@ -21,8 +21,9 @@ const researchInstructions = `Найди через web_search до 12 конк�
 
 На текущем шаге используй словарь только для поисковых формулировок и оценки темы. Извлечение утверждений и подготовку дайджеста выполняет вызывающее приложение по полученным текстам. Текущий ответ строго {"candidates":[{"url":"https://allowed.example/news/article","title":"Заголовок"}]}, без claims, списка утверждений, цитат или Markdown-обзора. Если ничего не найдено, ответ строго {"candidates":[]}.`
 
-const researchPromptVersion = "article-collection-v1"
+const researchPromptVersion = "article-collection-v2-audit"
 const maxResearchCandidates = 12
+const maxResearchFetches = 24
 
 type SourceFetcher interface {
 	Fetch(context.Context, string) (news.Article, error)
@@ -45,6 +46,8 @@ type ResearchSource struct {
 	TextCharacters int    `json:"text_characters"`
 	Status         string `json:"status"`
 	Reason         string `json:"reason,omitzero"`
+	Stage          string `json:"stage,omitzero"`
+	Error          string `json:"error,omitzero"`
 }
 
 type Research struct {
@@ -61,11 +64,13 @@ type Research struct {
 	SearchAttempts     []ResearchSearchAttempt     `json:"search_attempts"`
 	Discovery          []ResearchDiscoveryAttempt  `json:"discovery"`
 	RejectedCandidates []RejectedResearchCandidate `json:"rejected_candidates"`
-	AllowedDomains     []string                    `json:"allowed_domains"`
-	Sources            []ResearchSource            `json:"sources"`
-	ExcludedSources    []ResearchSource            `json:"excluded_sources"`
-	Warnings           []string                    `json:"warnings"`
-	Limitations        []string                    `json:"limitations"`
+	CandidateAudit     []CandidateAudit            `json:"candidate_audit"`
+	candidateIndexes   map[string]int
+	AllowedDomains     []string         `json:"allowed_domains"`
+	Sources            []ResearchSource `json:"sources"`
+	ExcludedSources    []ResearchSource `json:"excluded_sources"`
+	Warnings           []string         `json:"warnings"`
+	Limitations        []string         `json:"limitations"`
 }
 
 type searchCandidate struct {
@@ -122,7 +127,7 @@ func (s *Server) collect(ctx context.Context, input researchRequest, control tim
 		Sources: []ResearchSource{}, ExcludedSources: []ResearchSource{}, Warnings: []string{},
 		Limitations: []string{
 			"Проверены доступность текста и дата публикации из метаданных; это не доказательство истинности фактов или семантической релевантности.",
-			"Поиск и лимит 12 кандидатов не гарантируют полноту новостей. Обрезка текста отмечена у источника.",
+			"Поиск ограничен 12 принятыми материалами, 24 загрузками статей и двумя поисковыми генерациями; полнота новостей не гарантируется. Причины непроверенных URL и обрезка текста сохранены в аудите.",
 			"Веб-набор не заменяет контрольный архив организаторов. Трасса содержит только поисковые вызовы, переданные провайдером.",
 			"RSS и новостные разделы дают дополнительные ссылки, но не архив всех публикаций. Дата из RSS используется только для предварительного отбора, затем проверяется HTML статьи.",
 		},
@@ -142,12 +147,34 @@ func (s *Server) collect(ctx context.Context, input researchRequest, control tim
 	candidates := appendArticleCandidates(nil, feedCandidates, &research, seen)
 	candidates = appendArticleCandidates(candidates, parsed, &research, seen)
 	candidates = appendArticleCandidates(candidates, htmlCandidates, &research, seen)
-	// One bounded clarification replaces listing URLs with article permalinks.
-	// It is not a transport retry and never expands the publication time window.
-	if len(research.RejectedCandidates) > 0 && len(candidates) < maxResearchCandidates {
-		candidates = s.refineArticleSearch(ctx, control, input.Query, candidates, &research, seen)
+	var articles []collector.Article
+	fetched := 0
+	consume := func(limit int) {
+		for len(candidates) > 0 && len(research.Sources) < maxResearchCandidates && fetched < limit && ctx.Err() == nil {
+			count := min(len(candidates), maxResearchCandidates-len(research.Sources), limit-fetched)
+			batch := candidates[:count]
+			candidates = candidates[count:]
+			articles = append(articles, s.fetchResearchSources(ctx, batch, control, &research)...)
+			fetched += count
+		}
 	}
-	articles := s.fetchResearchSources(ctx, candidates, control, &research)
+	consume(maxResearchCandidates)
+	if len(research.Sources) < maxResearchCandidates && fetched < maxResearchFetches && ctx.Err() == nil && (len(research.ExcludedSources) > 0 || len(research.CandidateAudit) > len(research.Sources)) {
+		refined := s.refineArticleSearch(ctx, control, input.Query, nil, &research, seen)
+		candidates = append(refined, candidates...)
+	}
+	consume(maxResearchFetches)
+	pendingReason := "Публикация не проверялась: достигнут лимит 12 принятых материалов или 24 загрузок за запуск."
+	pendingCode := "fetch_limit"
+	if ctx.Err() != nil {
+		pendingReason, pendingCode = sourceErrorReason(ctx.Err()), news.ErrorCode(ctx.Err())
+	}
+	for _, candidate := range candidates {
+		research.recordCandidate(candidate.URL, "limit", "not_processed", pendingReason, pendingCode)
+	}
+	if len(candidates) > 0 {
+		research.Warnings = append(research.Warnings, pendingReason+" Непроверенные URL сохранены в журнале.")
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -163,9 +190,9 @@ func researchCandidates(text string, research *Research) []searchCandidate {
 	if err := json.Unmarshal([]byte(researchJSONPayload(text)), &response); err != nil || response.Candidates == nil {
 		response.Candidates = nil
 		research.Warnings = append(research.Warnings, "Поиск не вернул ожидаемый JSON кандидатов; для проверки использованы только URL фактических аннотаций.")
-		for _, raw := range research.CitationURLs {
-			response.Candidates = append(response.Candidates, searchCandidate{URL: raw})
-		}
+	}
+	for _, raw := range research.CitationURLs {
+		response.Candidates = append(response.Candidates, searchCandidate{URL: raw})
 	}
 	candidates := []searchCandidate{}
 	seen := map[string]bool{}
@@ -175,10 +202,6 @@ func researchCandidates(text string, research *Research) []searchCandidate {
 			continue
 		}
 		seen[candidate.URL] = true
-		if len(candidates) == maxResearchCandidates {
-			research.Warnings = append(research.Warnings, "Обработаны только первые 12 уникальных кандидатов; остальные не загружались.")
-			break
-		}
 		candidate.Title = clipResearchText(candidate.Title, 500)
 		candidates = append(candidates, candidate)
 	}

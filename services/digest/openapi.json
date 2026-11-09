@@ -851,7 +851,7 @@
       "post": {
         "operationId": "runDatasetPipeline",
         "summary": "Отбор из news.json, анализ и структурированный результат",
-        "description": "Сам news.json в теле application/json, без обёртки и multipart. Поиск, RSS/HTML и загрузка URL не выполняются. T берётся из файла; даты фильтруются строго в (T-24h,T]. Исходные items остаются в news и журнале, metadata времени нормализуется в Москву. Нет лимита 12 статей; тело до 1 MiB, тексты допущенных статей до 120000 символов. Один слот, до 2 x REQUEST_TIMEOUT (360 секунд). Анализ и экспорт пустого набора не вызывают модель. Аудит source=news без collection/research. Повторный POST повторяет анализ и генерацию.",
+        "description": "Сам news.json в теле application/json, без обёртки и multipart. Поиск, RSS/HTML и загрузка URL не выполняются. T берётся из файла; даты фильтруются строго в (T-24h,T]. Исходные items остаются в news и журнале, metadata времени нормализуется в Москву. Нет лимита 12 статей; тело до 1 MiB, тексты допущенных статей до 144000 символов. Один слот, до 2 x REQUEST_TIMEOUT (360 секунд). Анализ и экспорт пустого набора не вызывают модель. Аудит source=news без collection/research. Повторный POST повторяет анализ и генерацию.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1684,7 +1684,7 @@
           "items"
         ],
         "additionalProperties": false,
-        "description": "Готовые статьи в формате news.json. Тело до 1 MiB; items может быть пустым. Сумма символов текстов допущенных статей не более 120000 Unicode code points; это технический лимит, не подсчёт токенов.",
+        "description": "Готовые статьи в формате news.json. Тело до 1 MiB; items может быть пустым. Сумма символов текстов допущенных статей не более 144000 Unicode code points; это технический лимит, не подсчёт токенов.",
         "properties": {
           "dataset": {
             "type": "string",
@@ -2270,7 +2270,7 @@
           "items"
         ],
         "additionalProperties": false,
-        "description": "Сам файл news.json. dataset/control_time/items обязательны; неизвестные поля запрещены. Нет загрузки URL и лимита 12 статей. Пределы: тело 1 MiB, до 120000 символов текстов допущенных статей.",
+        "description": "Сам файл news.json. dataset/control_time/items обязательны; неизвестные поля запрещены. Нет загрузки URL и лимита 12 статей. Пределы: тело 1 MiB, до 144000 символов текстов допущенных статей.",
         "properties": {
           "dataset": {
             "type": "string",

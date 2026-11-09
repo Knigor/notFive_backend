@@ -54,11 +54,11 @@ func TestCollectionReturnsArticleTextsWithinWindowWithoutSynthesis(t *testing.T)
 	}
 	dataset := decodeNewsDataset(t, response)
 	run := savedRunFromCollection(t, server, response)
-	if run.Mode != "collection" || run.Status != "completed" || run.Collection == nil || searches.Load() != 1 {
+	if run.Mode != "collection" || run.Status != "completed" || run.Collection == nil || searches.Load() != 2 {
 		t.Fatalf("collection performed synthesis or lost its result: %+v; searches=%d", run, searches.Load())
 	}
 	collection := run.Collection
-	if dataset.Dataset != "web" || dataset.Timezone != "Europe/Moscow" || dataset.ControlTime != "2026-11-08T13:48:16+03:00" || dataset.PeriodStart != "2026-11-07T13:48:16+03:00" || len(dataset.Items) != 2 {
+	if dataset.Dataset != "web" || dataset.Timezone != "Europe/Moscow" || dataset.ControlTime != "2026-11-08T13:48:16+03:00" || dataset.PeriodStart != "2026-11-07T13:48:16+03:00" || len(dataset.Items) != 6 {
 		t.Fatalf("incorrect news.json metadata or selection: %+v", dataset)
 	}
 	if collection.ControlTime != "2026-11-08T13:48:16+03:00" || collection.WindowStart != "2026-11-07T13:48:16+03:00" || collection.Counts.Candidates != 6 || collection.Counts.Accepted != 2 || collection.Counts.Excluded != 4 {
@@ -92,7 +92,7 @@ func TestCollectionReturnsArticleTextsWithinWindowWithoutSynthesis(t *testing.T)
 			t.Errorf("missing %s exclusion reason: %q", name, reasons[articleURL(name)])
 		}
 	}
-	if run.Research == nil || run.Research.Status != "completed" || !run.Research.SearchObserved || len(run.Research.SearchAttempts) != 1 || len(run.Research.SearchAttempts[0].Candidates) != 6 {
+	if run.Research == nil || run.Research.Status != "completed" || !run.Research.SearchObserved || len(run.Research.SearchAttempts) != 2 || len(run.Research.SearchAttempts[0].Candidates) != 6 {
 		t.Fatalf("search audit or Markdown JSON candidates lost: %+v", run.Research)
 	}
 	restarted, err := New(cfg, provider)
@@ -130,10 +130,10 @@ func TestCollectionWithoutEligibleArticlesCompletesWithoutSynthesis(t *testing.T
 			response := call(server, "POST", "/v1/collect", `{"control_time":"2026-11-08T13:48:16+03:00","query":"ИБ"}`, serviceToken)
 			dataset := decodeNewsDataset(t, response)
 			run := savedRunFromCollection(t, server, response)
-			if response.Code != 201 || run.Status != "completed" || run.Collection == nil || dataset.Items == nil || len(dataset.Items) != 0 {
+			if response.Code != 201 || run.Status != "completed" || run.Collection == nil || dataset.Items == nil || len(dataset.Items) != test.count {
 				t.Fatalf("empty collection did not complete: %d %s", response.Code, response.Body.String())
 			}
-			if searches.Load() != 1 || run.Collection.Articles == nil || len(run.Collection.Articles) != 0 || run.Collection.Counts.Accepted != 0 || run.Collection.Counts.Candidates != test.count || run.Collection.Counts.Excluded != test.count || len(run.Collection.ExcludedArticles) != test.count {
+			if searches.Load() != int32(1+test.count) || run.Collection.Articles == nil || len(run.Collection.Articles) != 0 || run.Collection.Counts.Accepted != 0 || run.Collection.Counts.Candidates != test.count || run.Collection.Counts.Excluded != test.count || len(run.Collection.ExcludedArticles) != test.count {
 				t.Fatalf("bad empty collection counts or synthesis: %+v", run.Collection)
 			}
 		})

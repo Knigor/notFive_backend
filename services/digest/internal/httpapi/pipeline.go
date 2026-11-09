@@ -192,6 +192,7 @@ func (s *Server) runPipeline(w http.ResponseWriter, r *http.Request, input any, 
 		s.completePipeline(w, r, &run, err)
 		return
 	}
+	validatedAnalysis := *run.Analysis.Result
 	run.Pipeline.Stage = "export"
 	if !s.pipelineCheckpoint(w, r, &run) {
 		return
@@ -204,6 +205,9 @@ func (s *Server) runPipeline(w http.ResponseWriter, r *http.Request, input any, 
 		}
 		prepared.Locale = locale
 		run.Export.ModelInput = prepared.Input
+		validatedAnalysis = prepared.Request.Analysis
+		run.Export.ValidatedAnalysis = &validatedAnalysis
+		run.Export.EvidenceChecks = prepared.EvidenceChecks
 		result, generation, err := export.Export(stageCtx, s.cfg.ExportProvider, prepared)
 		run.Export.Generation = generation
 		if err == nil {
@@ -224,7 +228,7 @@ func (s *Server) runPipeline(w http.ResponseWriter, r *http.Request, input any, 
 				}
 			}
 		}
-		run.Pipeline.Result = &PipelineResult{RunID: run.ID, Status: "completed", News: *dataset, Analysis: *run.Analysis.Result, Draft: *run.Export.Result, Warnings: warnings}
+		run.Pipeline.Result = &PipelineResult{RunID: run.ID, Status: "completed", News: *dataset, Analysis: validatedAnalysis, Draft: *run.Export.Result, Warnings: warnings}
 	}
 	s.completePipeline(w, r, &run, err)
 }

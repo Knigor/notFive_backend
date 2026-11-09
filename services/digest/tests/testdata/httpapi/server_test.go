@@ -125,7 +125,7 @@ func TestResearchRecordsOnlyActualSearchTrace(t *testing.T) {
 		t.Fatal(response.Body.String())
 	}
 	run := savedRunFromCollection(t, server, response)
-	if run.Mode != "collection" || run.Research == nil || run.Research.Status != "completed" || !run.Research.SearchObserved || len(run.Research.SearchCalls) != 1 || len(run.Research.CitationURLs) != 1 || len(run.Research.CitationRefs) != 3 || run.Research.ControlTime != "2026-11-07T12:00:00+03:00" {
+	if run.Mode != "collection" || run.Research == nil || run.Research.Status != "completed" || !run.Research.SearchObserved || len(run.Research.SearchCalls) != 2 || len(run.Research.CitationURLs) != 1 || len(run.Research.CitationRefs) != 3 || run.Research.ControlTime != "2026-11-07T12:00:00+03:00" {
 		t.Fatalf("bad research %+v", run.Research)
 	}
 	if run.Collection == nil || len(run.Collection.Articles) != 0 || len(run.Collection.ExcludedArticles) != 1 {

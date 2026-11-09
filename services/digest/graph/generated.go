@@ -133,6 +133,7 @@ type ComplexityRoot struct {
 		Excluded              func(childComplexity int) int
 		Groups                func(childComplexity int) int
 		RecommendedOrder      func(childComplexity int) int
+		RunID                 func(childComplexity int) int
 		SelectionSummary      func(childComplexity int) int
 		Warnings              func(childComplexity int) int
 	}
@@ -519,6 +520,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.PreparedDigest.RecommendedOrder(childComplexity), true
+	case "PreparedDigest.runId":
+		if e.complexity.PreparedDigest.RunID == nil {
+			break
+		}
+
+		return e.complexity.PreparedDigest.RunID(childComplexity), true
 	case "PreparedDigest.selectionSummary":
 		if e.complexity.PreparedDigest.SelectionSummary == nil {
 			break
@@ -2072,6 +2079,8 @@ func (ec *executionContext) fieldContext_Mutation_prepareDigest(ctx context.Cont
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "runId":
+				return ec.fieldContext_PreparedDigest_runId(ctx, field)
 			case "groups":
 				return ec.fieldContext_PreparedDigest_groups(ctx, field)
 			case "recommendedOrder":
@@ -2114,6 +2123,35 @@ func (ec *executionContext) fieldContext_Mutation_prepareDigest(ctx context.Cont
 	if fc.Args, err = ec.field_Mutation_prepareDigest_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PreparedDigest_runId(ctx context.Context, field graphql.CollectedField, obj *model.PreparedDigest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PreparedDigest_runId,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PreparedDigest_runId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PreparedDigest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
 	}
 	return fc, nil
 }
@@ -4861,6 +4899,11 @@ func (ec *executionContext) _PreparedDigest(ctx context.Context, sel ast.Selecti
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("PreparedDigest")
+		case "runId":
+			out.Values[i] = ec._PreparedDigest_runId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "groups":
 			out.Values[i] = ec._PreparedDigest_groups(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

@@ -81,5 +81,12 @@ func newsDataset(collection *Collection, locale string) NewsDataset {
 			URL: article.URL, PublishedAt: new(article.PublishedAt), Missing: []string{}, Error: nil,
 		})
 	}
+	for _, excluded := range collection.ExcludedArticles {
+		source := excluded.Source
+		if source == "" {
+			source = "Источник не определён"
+		}
+		dataset.Items = append(dataset.Items, NewsItem{ID: excluded.ID, Title: excluded.Title, Source: source, URL: excluded.URL, Missing: []string{"text"}, Error: new(excluded.Reason)})
+	}
 	return dataset
 }

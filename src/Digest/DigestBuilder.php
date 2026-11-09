@@ -6,9 +6,12 @@ namespace App\Digest;
 
 use App\Run\GoRunDispatcher;
 use Doctrine\DBAL\Connection;
+use Monolog\Attribute\WithMonologChannel;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
+#[WithMonologChannel('digest_run')]
 final readonly class DigestBuilder
 {
     public function __construct(
@@ -18,6 +21,7 @@ final readonly class DigestBuilder
         private Connection $connection,
         private ValidatorInterface $validator,
         private TranslatorInterface $translator,
+        private LoggerInterface $logger,
     ) {
     }
 
@@ -53,7 +57,13 @@ final readonly class DigestBuilder
                 'error' => $row['source_error'],
             ], $materials);
             $controlTime = (new \DateTimeImmutable((string) $run['control_time']))->format(DATE_ATOM);
-            $result = GoDigestResult::fromArray($this->go->prepareDigest($controlTime, $input));
+            $this->logger->info('Digest preparation started.', ['runId' => $runId, 'materialCount' => count($input)]);
+            $result = GoDigestResult::fromArray($this->go->prepareDigest($controlTime, $input, $runId));
+            $this->repository->recordPreparation($runId, $result->runId);
+            $this->logger->info('Digest preparation received.', [
+                'runId' => $runId, 'digestRunId' => $result->runId, 'eventCount' => count($result->recommendedOrder),
+                'warningCount' => count($result->warnings), 'analysisDurationMs' => $result->analysisDurationMs, 'draftDurationMs' => $result->draftDurationMs,
+            ]);
             if (0 !== count($this->validator->validate($result))) {
                 throw new \UnexpectedValueException('Invalid Go digest response.');
             }

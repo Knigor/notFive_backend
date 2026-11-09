@@ -18,6 +18,7 @@ input PrepareDigestInput {
 }
 
 type PreparedDigest {
+  runId: ID!
   groups: [DigestGroup!]!
   recommendedOrder: [String!]!
   excluded: [DigestExclusion!]!
