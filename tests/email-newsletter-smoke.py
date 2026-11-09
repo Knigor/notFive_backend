@@ -238,12 +238,12 @@ class NewsletterSmoke:
         self.target_ids.add(rows[0]["id"])
         return rows[0]
 
-    def subscribe(self, email, locale="ru"):
+    def subscribe(self, email, locale="ru", api=None):
         before = {row["ip_hash"] for row in self.rows("SELECT ip_hash FROM email_subscription_limits")}
         try:
             return self.graphql(
                 "mutation($email: String!) { subscribeEmail(email: $email) { status message } }",
-                {"email": email}, locale=locale,
+                {"email": email}, locale=locale, api=api,
             )
         finally:
             after = {row["ip_hash"] for row in self.rows("SELECT ip_hash FROM email_subscription_limits")}

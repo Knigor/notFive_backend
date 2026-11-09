@@ -37,6 +37,12 @@ services:
         arguments:
             $tokenTtl: '%admin_jwt_ttl%'
 
+    App\Mail\SmtpTimeoutTransportFactory:
+        decorates: 'mailer.transport_factory.smtp'
+        autoconfigure: false
+        arguments:
+            $inner: '@App\Mail\SmtpTimeoutTransportFactory.inner'
+
     App\Command\BootstrapAdminCommand:
         arguments:
             $bootstrapUsername: '%env(ADMIN_BOOTSTRAP_USERNAME)%'

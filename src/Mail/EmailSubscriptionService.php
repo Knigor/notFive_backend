@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -14,6 +15,7 @@ final readonly class EmailSubscriptionService
         private EmailSubscriptionComposer $composer,
         private DigestEmailSender $sender,
         private ValidatorInterface $validator,
+        private LoggerInterface $logger,
     ) {
     }
 
@@ -40,6 +42,7 @@ final readonly class EmailSubscriptionService
         try {
             $this->sender->send($email, $this->composer->confirmation($token, $locale));
         } catch (\Throwable) {
+            $this->logger->warning('Email confirmation transport failed.');
             $this->subscriptions->releaseConfirmation($token);
             throw new EmailSubscriptionException('unavailable');
         }
