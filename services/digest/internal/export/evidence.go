@@ -14,6 +14,10 @@ func verifiedAnalysis(original analysis.Result, news analysis.Prepared) (analysi
 	result.RecommendedOrder = []string{}
 	result.Excluded = maps.Clone(original.Excluded)
 	for id, reason := range news.Excluded {
+		if reason == "analysis_budget_exceeded" {
+			result.Excluded[id] = message("ru", "source_"+reason, analysis.MaxTextCharacters)
+			continue
+		}
 		result.Excluded[id] = message("ru", "source_"+reason)
 	}
 	issues := map[string][]string{}

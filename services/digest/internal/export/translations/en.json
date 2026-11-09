@@ -10,6 +10,7 @@
   "no_verified_events": "No suitable events with verifiable source facts remain.",
   "invalid_source_reason": "The source could not be verified: unusable date, text or URL.",
   "source_read_error": "The material was excluded because the source could not be read.",
+  "source_analysis_budget_exceeded": "The material was excluded: its full text does not fit in the remaining analysis budget (%d characters per request).",
   "source_missing_text": "The material was excluded: source text is missing.",
   "source_missing_date": "The material was excluded: the publication date could not be verified.",
   "source_outside_period": "The material was excluded: publication date is outside (T−24h, T]."

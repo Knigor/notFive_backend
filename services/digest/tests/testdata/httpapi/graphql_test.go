@@ -135,6 +135,68 @@ func TestGraphQLPrepareDigestReturnsStructuredFields(t *testing.T) {
 	}
 }
 
+func TestGraphQLPrepareDigestPreservesBudgetExclusionsAndAudit(t *testing.T) {
+	for _, allOverflow := range []bool{false, true} {
+		t.Run(map[bool]string{false: "later article fits", true: "all articles overflow"}[allOverflow], func(t *testing.T) {
+			server, calls := pipelineFixture(t, false, "")
+			gql := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{Collector: server}}))
+			gql.AddTransport(transport.POST{})
+			server.MountGraphQL(gql)
+			items := []*model.MaterialInput{{
+				ID: "oversized", Title: new("Большая публикация"), Text: new(strings.Repeat("я", 230001)),
+				Source: new("Test source"), URL: new("https://securitylab.ru/news/large.php"),
+				PublishedAt: new("2026-11-08T10:00:00Z"), Missing: []string{},
+			}}
+			if !allOverflow {
+				items = append(items, &model.MaterialInput{
+					ID: "A-1", Title: new("Test"), Text: new(pipelineTestText), Source: new("Test source"),
+					URL: new(pipelineTestURL), PublishedAt: new("2026-11-08T10:00:00Z"), Missing: []string{},
+				})
+			}
+			body, err := json.Marshal(map[string]any{
+				"query":     `mutation($input: PrepareDigestInput!) { prepareDigest(input:$input) { runId groups { id ids } recommendedOrder excluded { articleId reason } events { groupId } warnings } }`,
+				"variables": map[string]any{"input": model.PrepareDigestInput{ControlTime: "2026-11-08T10:00:00Z", Items: items}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			response := graphQLCall(server, string(body), serviceToken)
+			var result struct {
+				Data   struct{ PrepareDigest model.PreparedDigest } `json:"data"`
+				Errors []any                                        `json:"errors"`
+			}
+			if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &result) != nil || len(result.Errors) != 0 {
+				t.Fatalf("budget overflow failed the whole GraphQL request: %d %s", response.Code, response.Body.String())
+			}
+			prepared := result.Data.PrepareDigest
+			if len(prepared.Excluded) != 1 || prepared.Excluded[0].ArticleID != "oversized" || !strings.Contains(prepared.Excluded[0].Reason, "230000") || !strings.Contains(prepared.Excluded[0].Reason, "бюджет") {
+				t.Fatalf("GraphQL lost the budget exclusion: %+v", prepared.Excluded)
+			}
+			if !strings.Contains(strings.Join(prepared.Warnings, "\n"), "oversized") {
+				t.Fatalf("GraphQL lost the budget warning: %v", prepared.Warnings)
+			}
+			if allOverflow {
+				if len(*calls) != 0 || len(prepared.Events) != 0 || len(prepared.Groups) != 0 || len(prepared.RecommendedOrder) != 0 {
+					t.Fatalf("all-overflow request called a model or invented an event: calls=%v, events=%v", *calls, prepared.Events)
+				}
+			} else if !slices.Equal(*calls, []string{"analysis", "export"}) || len(prepared.Events) != 1 || len(prepared.Groups) != 1 || !slices.Equal(prepared.Groups[0].Ids, []string{"A-1"}) {
+				t.Fatalf("later fitting article failed to reach the digest: calls=%v, groups=%v", *calls, prepared.Groups)
+			}
+			raw, err := os.ReadFile(filepath.Join(server.cfg.DataDir, "runs", prepared.RunID+".json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var audit Run
+			if json.Unmarshal(raw, &audit) != nil || audit.Status != "completed" || audit.Analysis == nil || audit.Analysis.Result == nil || audit.Export == nil || audit.Export.ValidatedAnalysis == nil {
+				t.Fatal("completed budget-limited request lacks analysis/export audit")
+			}
+			if !strings.Contains(audit.Analysis.Result.Excluded["oversized"], "230000") || audit.Export.ValidatedAnalysis.Excluded["oversized"] != prepared.Excluded[0].Reason {
+				t.Fatal("analysis, export and GraphQL audit disagree about the excluded material")
+			}
+		})
+	}
+}
+
 func TestGraphQLCollectPreservesDifferentSourcesOfOneEvent(t *testing.T) {
 	addresses := []string{pipelineTestURL, "https://3dnews.ru/news/one.html"}
 	ids := []string{candidateID(addresses[0]), candidateID(addresses[1])}

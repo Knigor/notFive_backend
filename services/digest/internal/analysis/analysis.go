@@ -19,14 +19,15 @@ var (
 	ErrDatasetRequired    = errors.New("dataset_required")
 	ErrItemsRequired      = errors.New("items_required")
 	ErrInvalidArticleIDs  = errors.New("invalid_article_ids")
-	ErrInputTooLarge      = errors.New("analysis_input_too_large")
 	ErrInvalidModelOutput = errors.New("invalid_model_output")
 )
 
-const MaxTextCharacters = 144000
+const MaxTextCharacters = 230000
 
 // Prepare validates the envelope and excludes articles with an unusable date or
-// text. This does not verify publisher metadata or semantic relevance again.
+// text. Whole articles are admitted in input order within the text budget;
+// skipping an oversized article does not prevent later articles from fitting.
+// This does not verify publisher metadata or semantic relevance again.
 func Prepare(input Dataset) (Prepared, error) {
 	control, err := time.Parse(time.RFC3339Nano, input.ControlTime)
 	if err != nil {
@@ -74,10 +75,12 @@ func Prepare(input Dataset) (Prepared, error) {
 			prepared.Excluded[item.ID] = reason
 			continue
 		}
-		characters += utf8.RuneCountInString(*item.Text)
-		if characters > MaxTextCharacters {
-			return Prepared{}, ErrInputTooLarge
+		itemCharacters := utf8.RuneCountInString(*item.Text)
+		if itemCharacters > MaxTextCharacters-characters {
+			prepared.Excluded[item.ID] = "analysis_budget_exceeded"
+			continue
 		}
+		characters += itemCharacters
 		prepared.Dataset.Items = append(prepared.Dataset.Items, item)
 	}
 	// Description/fields are caller-supplied documentation and are not instructions.
@@ -97,8 +100,14 @@ func Analyze(ctx context.Context, provider collector.Provider, prepared Prepared
 		PeriodStart: prepared.Dataset.PeriodStart, Timezone: "Europe/Moscow",
 		Groups: map[string]Group{}, RecommendedOrder: []string{}, Excluded: map[string]string{}, Warnings: []string{},
 	}
-	for id, reason := range prepared.Excluded {
-		result.Excluded[id] = message(prepared.Locale, reason)
+	for _, id := range slices.Sorted(maps.Keys(prepared.Excluded)) {
+		reason := prepared.Excluded[id]
+		if reason == "analysis_budget_exceeded" {
+			result.Excluded[id] = message(prepared.Locale, reason, MaxTextCharacters)
+			result.Warnings = append(result.Warnings, message(prepared.Locale, "analysis_budget_excluded_item", id, MaxTextCharacters))
+		} else {
+			result.Excluded[id] = message(prepared.Locale, reason)
+		}
 	}
 	if len(prepared.Dataset.Items) == 0 {
 		result.Warnings = append(result.Warnings, message(prepared.Locale, "no_eligible_items"))

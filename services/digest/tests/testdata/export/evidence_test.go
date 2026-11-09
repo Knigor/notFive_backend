@@ -138,3 +138,27 @@ func TestPrepareRejectsOutsideWindowEvenWhenAnalysisClaimsValidEvidence(t *testi
 		t.Fatalf("out-of-window material reached export: %s %+v", prepared.Input, prepared.Request.Analysis)
 	}
 }
+
+func TestPrepareRetainsBudgetExclusionWithoutSendingOversizedSourceToProse(t *testing.T) {
+	request := evidenceRequest()
+	oversized := analysis.Item{
+		ID: "oversized", Title: "Большой источник", Text: new(strings.Repeat("я", 230001)),
+		URL: "https://example.org/oversized", PublishedAt: new("2026-11-09T08:00:00+03:00"),
+	}
+	request.News.Items = append([]analysis.Item{oversized}, request.News.Items...)
+	request.Analysis.Excluded["oversized"] = "Бюджет анализа превышен."
+	prepared, err := Prepare(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reason := prepared.Request.Analysis.Excluded["oversized"]
+	if !strings.Contains(reason, "230000") || !strings.Contains(reason, "бюджет") || strings.Contains(reason, "source_analysis_budget_exceeded") {
+		t.Fatalf("export lost the human-readable budget reason: %q", reason)
+	}
+	if !slices.Equal(prepared.Request.Analysis.RecommendedOrder, []string{"G1"}) || strings.Contains(prepared.Input, "oversized") || !strings.Contains(prepared.Input, "Веб-сервис получил 6 отчетов.") {
+		t.Fatal("budget exclusion removed the later verified event or reached the prose model")
+	}
+	if len(request.News.Items) != 2 || *request.News.Items[0].Text != *oversized.Text {
+		t.Fatal("original news was truncated or lost a source needed by the journal")
+	}
+}

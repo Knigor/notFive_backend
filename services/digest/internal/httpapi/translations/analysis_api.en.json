@@ -7,6 +7,5 @@
   "cancelled": "The analysis request was cancelled.",
   "content_filter": "Yandex stopped the model response with content_filter. A partial response is not a completed analysis. The reason and provider response are saved in the audit.",
   "max_output_tokens": "The model response exceeded YANDEX_ANALYSIS_MAX_OUTPUT_TOKENS. Increase it within the supported limit or reduce the input; the partial response is retained only in the audit.",
-  "refusal": "The model refused to analyze the supplied material. The response is saved in the audit; no completed analysis was produced.",
-  "analysis_input_too_large": "The dataset is too large for one analysis request. Split it into batches or reduce the text volume."
+  "refusal": "The model refused to analyze the supplied material. The response is saved in the audit; no completed analysis was produced."
 }

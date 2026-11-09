@@ -12,7 +12,6 @@
   "export_metadata_mismatch": "Analysis and news metadata do not match. Use analysis.json and news.json from the same dataset and period.",
   "invalid_selection": "recommended_order must contain at most five unique IDs of existing groups; an empty array is allowed.",
   "invalid_analysis": "analysis.json must contain groups and excluded objects.",
-  "analysis_input_too_large": "The dataset is too large for one request. Reduce the text volume.",
   "generation_failed": "Could not create the files. Check the saved audit, API key permissions, and export model availability.",
   "invalid_model_output": "The model response does not match the export structure. The original response is saved in the audit; no completed files were produced.",
   "timeout": "Export exceeded REQUEST_TIMEOUT.",

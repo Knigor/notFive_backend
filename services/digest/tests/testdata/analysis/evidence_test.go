@@ -1,10 +1,13 @@
 package analysis
 
 import (
-	"errors"
+	"context"
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
+
+	"github.com/Knigor/notFive_backend/services/digest/internal/collector"
 )
 
 func TestMatchQuoteRestoresSourceTypographyWithoutFuzzyMatching(t *testing.T) {
@@ -30,17 +33,75 @@ func TestMatchQuoteRestoresSourceTypographyWithoutFuzzyMatching(t *testing.T) {
 	}
 }
 
-func TestPrepareAllowsTwelveFullArticlesWithoutTruncation(t *testing.T) {
-	dataset := Dataset{Dataset: "test", ControlTime: "2026-11-09T09:00:00+03:00", Items: []Item{}}
-	for i := range 12 {
-		dataset.Items = append(dataset.Items, Item{ID: string(rune('A' + i)), Text: new(strings.Repeat("я", 12000)), PublishedAt: new("2026-11-09T08:00:00+03:00")})
-	}
+func TestPrepareAcceptsExactly230000UnicodeCharactersWithoutTruncation(t *testing.T) {
+	dataset := Dataset{Dataset: "test", ControlTime: "2026-11-09T09:00:00+03:00", Items: []Item{
+		{ID: "A", Text: new(strings.Repeat("я", 115001)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
+		{ID: "B", Text: new(strings.Repeat("ё", 114999)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
+	}}
 	prepared, err := Prepare(dataset)
-	if err != nil || len(prepared.Dataset.Items) != 12 {
-		t.Fatalf("full collection rejected: %v", err)
+	if err != nil || len(prepared.Dataset.Items) != 2 || len(prepared.Excluded) != 0 {
+		t.Fatalf("exact Unicode boundary rejected: %v, accepted=%d, excluded=%v", err, len(prepared.Dataset.Items), prepared.Excluded)
 	}
-	dataset.Items[0].Text = new(*dataset.Items[0].Text + "я")
-	if _, err := Prepare(dataset); !errors.Is(err, ErrInputTooLarge) {
-		t.Fatalf("input beyond 144000 characters accepted: %v", err)
+	characters := 0
+	for i, item := range prepared.Dataset.Items {
+		if item.ID != dataset.Items[i].ID || *item.Text != *dataset.Items[i].Text {
+			t.Fatal("article was reordered or truncated")
+		}
+		characters += utf8.RuneCountInString(*item.Text)
+	}
+	if characters != 230000 {
+		t.Fatalf("wrong Unicode character total: %d", characters)
+	}
+}
+
+func TestPrepareSkipsWholeOversizedArticlesAndContinuesWithinRemainingBudget(t *testing.T) {
+	dataset := Dataset{Dataset: "test", ControlTime: "2026-11-09T09:00:00+03:00", Items: []Item{
+		{ID: "too-large", Text: new(strings.Repeat("я", 230001)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
+		{ID: "accepted", Text: new(strings.Repeat("ё", 229999)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
+		{ID: "remaining-overflow", Text: new("аб"), PublishedAt: new("2026-11-09T08:00:00+03:00")},
+		{ID: "last-fits", Text: new("ю"), PublishedAt: new("2026-11-09T08:00:00+03:00")},
+	}}
+	prepared, err := Prepare(dataset)
+	if err != nil || len(prepared.Dataset.Items) != 2 || len(prepared.Excluded) != 2 {
+		t.Fatalf("overflow aborted the dataset: %v, accepted=%d, excluded=%v", err, len(prepared.Dataset.Items), prepared.Excluded)
+	}
+	if prepared.Dataset.Items[0].ID != "accepted" || prepared.Dataset.Items[1].ID != "last-fits" || *prepared.Dataset.Items[0].Text != *dataset.Items[1].Text || *prepared.Dataset.Items[1].Text != "ю" {
+		t.Fatal("overflow consumed budget, truncated text or stopped subsequent articles")
+	}
+	for _, id := range []string{"too-large", "remaining-overflow"} {
+		if prepared.Excluded[id] != "analysis_budget_exceeded" {
+			t.Fatalf("article %s lacks explicit budget reason: %v", id, prepared.Excluded)
+		}
+	}
+}
+
+type budgetProviderFunc func(context.Context, string, string) (collector.Generation, error)
+
+func (f budgetProviderFunc) Generate(ctx context.Context, instructions, input string) (collector.Generation, error) {
+	return f(ctx, instructions, input)
+}
+
+func TestAnalyzeAllBudgetExclusionsReturnsReasonsWithoutCallingModel(t *testing.T) {
+	for _, locale := range []string{"ru", "en"} {
+		t.Run(locale, func(t *testing.T) {
+			prepared, err := Prepare(Dataset{Dataset: "test", ControlTime: "2026-11-09T09:00:00+03:00", Items: []Item{
+				{ID: "large", Text: new(strings.Repeat("я", 230001)), PublishedAt: new("2026-11-09T08:00:00+03:00")},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			prepared.Locale = locale
+			result, generation, err := Analyze(t.Context(), budgetProviderFunc(func(context.Context, string, string) (collector.Generation, error) {
+				t.Fatal("model called with no eligible article")
+				return collector.Generation{}, nil
+			}), prepared)
+			if err != nil || len(result.Groups) != 0 || len(result.RecommendedOrder) != 0 || generation.Text != "" || len(result.Excluded) != 1 {
+				t.Fatalf("empty-budget result failed: %v %+v", err, result)
+			}
+			word := map[string]string{"ru": "бюджет", "en": "budget"}[locale]
+			if !strings.Contains(result.Excluded["large"], "230000") || !strings.Contains(result.Excluded["large"], word) || !strings.Contains(strings.Join(result.Warnings, "\n"), "large") {
+				t.Fatalf("localized budget reason or warning missing: %+v", result)
+			}
+		})
 	}
 }

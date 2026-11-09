@@ -18,6 +18,5 @@
   "invalid_period_start": "period_start должен соответствовать control_time минус 24 часа.",
   "dataset_required": "В news.json требуется непустое имя dataset.",
   "items_required": "В news.json требуется массив items; пустой массив допустим.",
-  "invalid_article_ids": "У каждого материала должен быть непустой уникальный id.",
-  "analysis_input_too_large": "Общий текст подходящих публикаций превышает 144 000 символов; уменьшите набор."
+  "invalid_article_ids": "У каждого материала должен быть непустой уникальный id."
 }

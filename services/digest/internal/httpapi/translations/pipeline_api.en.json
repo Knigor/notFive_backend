@@ -18,6 +18,5 @@
   "invalid_period_start": "period_start must equal control_time minus 24 hours.",
   "dataset_required": "A nonempty dataset name is required in news.json.",
   "items_required": "An items array is required in news.json; an empty array is allowed.",
-  "invalid_article_ids": "Each material must have a nonempty, unique id.",
-  "analysis_input_too_large": "Eligible article text exceeds 144,000 characters; reduce the dataset."
+  "invalid_article_ids": "Each material must have a nonempty, unique id."
 }
