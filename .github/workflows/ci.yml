@@ -48,7 +48,9 @@ jobs:
           docker run --rm -v "$PWD":/app -w /app --entrypoint php notfive:dependencies -d zend.assertions=1 -d assert.exception=1 scripts/telegram-unit-smoke.php
           docker run --rm -v "$PWD":/app -w /app --entrypoint php notfive:dependencies -d zend.assertions=1 -d assert.exception=1 scripts/telegram-poll-smoke.php
       - name: Check digest assembly
-        run: docker run --rm -v "$PWD":/app -w /app --entrypoint php notfive:dependencies -d zend.assertions=1 -d assert.exception=1 scripts/digest-build-smoke.php
+        run: |
+          docker run --rm -v "$PWD":/app -w /app --entrypoint php notfive:dependencies -d zend.assertions=1 -d assert.exception=1 scripts/digest-build-smoke.php
+          docker run --rm -v "$PWD":/app -w /app --entrypoint php notfive:dependencies -d zend.assertions=1 -d assert.exception=1 tests/run-statistics-smoke.php
       - name: Start production stack
         run: docker compose -f compose.prod.yaml up -d --no-build --wait --wait-timeout 120
       - name: Validate Symfony and test HTTP/database
