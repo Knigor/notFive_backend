@@ -28,7 +28,7 @@ final readonly class SiteSourceRepository
     /** @param list<string> $ids
      * @return list<SiteSource>
      */
-    public function readyByIds(array $ids): array
+    public function availableByIds(array $ids): array
     {
         if ([] === $ids) {
             return [];
@@ -37,7 +37,7 @@ final readonly class SiteSourceRepository
         $rows = $this->connection->fetchAllAssociative(<<<'SQL'
             SELECT id, name, task_url, search_domain, status
             FROM site_sources
-            WHERE id IN (:ids) AND status = 'ready'
+            WHERE id IN (:ids) AND status IN ('candidate', 'ready')
             SQL, ['ids' => $ids], ['ids' => ArrayParameterType::STRING]);
         $sources = [];
 
