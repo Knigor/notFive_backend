@@ -54,6 +54,50 @@ final readonly class TelegramMessages
     /** @return non-empty-list<string> */
     public function digest(PublishedDigest $digest, string $locale): array
     {
+        $text = $this->digestText($digest, $locale);
+        $sections = preg_split('/\n+(?='.self::EVENT_HEADING.')/u', $text) ?: [$text];
+        if (count($sections) > 1) {
+            $intro = array_shift($sections);
+            $sections[0] = $intro."\n\n".$sections[0];
+        }
+
+        $parts = [];
+        foreach ($sections as $section) {
+            array_push($parts, ...$this->htmlParts(trim($section)));
+        }
+
+        return $parts;
+    }
+
+    /** @return non-empty-list<string> */
+    public function latestDigest(PublishedDigest $digest, string $locale): array
+    {
+        if ([] === $digest->events) {
+            return $this->digest($digest, $locale);
+        }
+
+        $text = $this->digestText($digest, $locale);
+        $intro = preg_split('/\n+(?='.self::EVENT_HEADING.')/u', $text, 2)[0] ?? $text;
+        $parts = [];
+        foreach ($digest->events as $event) {
+            $card = $this->eventText($event, $locale);
+            if ('' !== $intro) {
+                if ($this->digestLength($intro."\n\n".$card) <= self::DIGEST_PART_LIMIT) {
+                    $card = $intro."\n\n".$card;
+                } else {
+                    array_push($parts, ...$this->htmlParts($intro));
+                }
+                $intro = '';
+            }
+
+            array_push($parts, ...$this->htmlParts($card));
+        }
+
+        return $parts;
+    }
+
+    private function digestText(PublishedDigest $digest, string $locale): string
+    {
         $text = trim(str_replace(["\r\n", "\r"], "\n", $digest->content));
         if (null !== $digest->subject && '' !== trim($digest->subject)) {
             $subjectLine = 'Тема: '.$digest->subject."\n";
@@ -63,24 +107,10 @@ final readonly class TelegramMessages
             $text = '# '.$digest->subject."\n\n".$text;
         }
         if ('' === trim($text)) {
-            return [$this->digestHtml($this->noDigest($locale))];
+            return [] === $digest->events ? $this->noDigest($locale) : '# 🟩 NOTFIVE / DIGEST';
         }
 
-        $text = "# 🟩 NOTFIVE / DIGEST\n\n".trim($text);
-        $sections = preg_split('/\n+(?='.self::EVENT_HEADING.')/u', $text) ?: [$text];
-        if (count($sections) > 1) {
-            $intro = array_shift($sections);
-            $sections[0] = $intro."\n\n".$sections[0];
-        }
-
-        $parts = [];
-        foreach ($sections as $section) {
-            foreach ($this->splitOversizedSection(trim($section)) as $block) {
-                $parts[] = $this->digestHtml($block);
-            }
-        }
-
-        return $parts ?: [$this->digestHtml($text)];
+        return "# 🟩 NOTFIVE / DIGEST\n\n".trim($text);
     }
 
     /** @return iterable<string> */
@@ -110,12 +140,29 @@ final readonly class TelegramMessages
             static fn (array $heading): string => '<b>'.str_pad($heading[1], 2, '0', STR_PAD_LEFT)."</b>\n<b>".$heading[2].'</b>',
             $escaped,
         ) ?? $escaped;
-        $headings = preg_replace('/^#{1,6}\h+(.+)$/m', '<b>$1</b>', $numbered) ?? $numbered;
+        $headings = preg_replace('/^(?:#{1,6}\h+(.+)|(🔎 \d+\. .+))$/mu', '<b>$1$2</b>', $numbered) ?? $numbered;
 
         return preg_replace('/^(Суть|Последствия|Источники|Обоснование|Период|Контрольное время):/mu', '<b>$1:</b>', $headings) ?? $headings;
     }
 
-    public function event(PublishedEvent $event, string $locale): string
+    /** @return non-empty-list<string> */
+    public function event(PublishedEvent $event, string $locale): array
+    {
+        return $this->htmlParts($this->eventText($event, $locale));
+    }
+
+    /** @return non-empty-list<string> */
+    private function htmlParts(string $text): array
+    {
+        $parts = [];
+        foreach ($this->splitOversizedSection($text) as $block) {
+            $parts[] = $this->digestHtml($block);
+        }
+
+        return $parts ?: [$this->digestHtml($text)];
+    }
+
+    private function eventText(PublishedEvent $event, string $locale): string
     {
         $text = $this->translate('event.body', $locale, [
             '%rank%' => (string) $event->rank,
@@ -128,7 +175,11 @@ final readonly class TelegramMessages
             $text .= "\n\n".$this->translate('event.sources', $locale)."\n".implode("\n", $event->sources);
         }
 
-        return $this->shorten($text, 3800, $locale);
+        if ('' !== trim($event->selectionReason)) {
+            $text .= "\n\n".$this->translate('event.reason', $locale, ['%reason%' => $event->selectionReason]);
+        }
+
+        return $text;
     }
 
     /** @return list<list<array{ text: string, callback_data: string, style?: 'primary'|'success'|'danger' }>> */
@@ -194,16 +245,5 @@ final readonly class TelegramMessages
     private function translate(string $key, string $locale, array $parameters = []): string
     {
         return $this->translator->trans('telegram.'.$key, $parameters, 'messages', $locale);
-    }
-
-    private function shorten(string $text, int $length, string $locale): string
-    {
-        if (grapheme_strlen($text) <= $length) {
-            return $text;
-        }
-
-        $short = grapheme_substr($text, 0, $length);
-
-        return (false === $short ? '' : $short)."\n\n".$this->translate('text_shortened', $locale);
     }
 }

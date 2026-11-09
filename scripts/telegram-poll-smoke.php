@@ -25,7 +25,9 @@ $connection->executeStatement('CREATE TABLE delivery_targets (id TEXT PRIMARY KE
 $connection->executeStatement('CREATE TABLE runs (id TEXT PRIMARY KEY, status TEXT, published_at TEXT)');
 $connection->executeStatement('CREATE TABLE artifacts (id TEXT PRIMARY KEY, run_id TEXT, content TEXT, kind TEXT)');
 $connection->executeStatement('CREATE TABLE email_preview_details (artifact_id TEXT PRIMARY KEY, subject TEXT)');
-$connection->executeStatement('CREATE TABLE events (id TEXT PRIMARY KEY, run_id TEXT, rank INTEGER, title TEXT, summary TEXT, consequences TEXT)');
+$connection->executeStatement('CREATE TABLE events (id TEXT PRIMARY KEY, run_id TEXT, rank INTEGER, title TEXT, summary TEXT, consequences TEXT, selection_reason TEXT)');
+$connection->executeStatement('CREATE TABLE materials (id TEXT PRIMARY KEY, source_name TEXT, url TEXT)');
+$connection->executeStatement('CREATE TABLE event_materials (event_id TEXT, material_id TEXT, is_primary_source BOOLEAN)');
 $pdo = $connection->getNativeConnection();
 assert($pdo instanceof PDO);
 $pdo->sqliteCreateFunction('gen_random_uuid', static fn (): string => '00000000-0000-0000-0000-000000000001');
@@ -81,5 +83,22 @@ assert('HTML' === $last['parse_mode']);
 assert(str_contains($last['text'], '<b>Тема выпуска</b>'));
 assert(str_contains($last['text'], 'Полный текст выпуска'));
 assert(!str_contains($last['text'], 'Короткий пост'));
+
+$connection->executeStatement("INSERT INTO events VALUES ('00000000-0000-0000-0000-000000000001', 'run', 1, 'Новость', 'Описание', 'Последствия', 'Почему в выпуске')");
+$connection->executeStatement("INSERT INTO materials VALUES ('source', 'Первоисточник', 'https://example.org/story')");
+$connection->executeStatement("INSERT INTO event_materials VALUES ('00000000-0000-0000-0000-000000000001', 'source', TRUE)");
+$handler->handle($updates[2]);
+$latestCard = $requests[count($requests) - 1][1];
+assert(str_contains($latestCard['text'], '<b>🔎 1. Новость</b>'));
+assert(str_contains($latestCard['text'], '↗ Sources:'));
+assert(str_contains($latestCard['text'], 'Первоисточник https://example.org/story'));
+assert($messages->homeButton('en') === $latestCard['reply_markup']['inline_keyboard']);
+
+$oldButton = $updates[2];
+$oldButton['callback_query']['data'] = 'event:00000000-0000-0000-0000-000000000001';
+$handler->handle($oldButton);
+$oldCard = $requests[count($requests) - 1][1];
+assert(str_starts_with($oldCard['text'], '<b>🔎 1. Новость</b>'));
+assert(str_ends_with($latestCard['text'], $oldCard['text']));
 
 echo "Telegram polling smoke passed.\n";
