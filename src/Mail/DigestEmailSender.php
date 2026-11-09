@@ -6,6 +6,7 @@ namespace App\Mail;
 
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 
 final readonly class DigestEmailSender
@@ -25,7 +26,7 @@ final readonly class DigestEmailSender
             throw new \RuntimeException('Email transport is disabled.');
         }
         $email = (new Email())
-            ->from($this->senderAddress)
+            ->from(new Address($this->senderAddress, 'notFive'))
             ->to($recipient)
             ->subject($preview->subject)
             ->text($preview->text)
