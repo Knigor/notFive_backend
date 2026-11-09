@@ -35,9 +35,8 @@ func TestResearchRefinesListingsOnceAndUsesOnlyUniqueArticleTexts(t *testing.T) 
 			End     string   `json:"window_end_inclusive"`
 			Queries []string `json:"site_queries"`
 			Seen    []string `json:"already_seen_urls"`
-			Max     int      `json:"max_candidates"`
 		}
-		if !found || json.Unmarshal([]byte(raw), &plan) != nil || plan.Max != 11 {
+		if !found || json.Unmarshal([]byte(raw), &plan) != nil || strings.Contains(raw, "max_candidates") {
 			t.Fatal("invalid refinement plan")
 		}
 		if plan.Start != "2026-11-07T13:48:16+03:00" || plan.End != "2026-11-08T13:48:16+03:00" || len(plan.Queries) != 5 || len(plan.Seen) != 4 || !slices.Contains(plan.Seen, firstURL) {

@@ -1,4 +1,6 @@
 {
+  "report_failed": "The model did not complete analysis. Exclusion reasons are recorded in the journal.",
+  "report_timeout": "Model analysis timed out. Exclusion reasons are recorded in the journal.",
   "unavailable": "The analysis model is not configured on the server.",
   "invalid_input": "Expected news.json with a dataset name, control time with a time zone, and an items array with unique nonempty IDs. The period must start exactly 24 hours before the control time.",
   "generation_failed": "Could not produce the analysis. Check the saved audit, API key permissions, and Alice AI LLM Flash availability in the folder.",

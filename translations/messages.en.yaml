@@ -111,7 +111,7 @@ digest_export:
     count_one: 'One event in this issue.'
     count_few: '%count% events in this issue.'
     count_many: '%count% events in this issue.'
-    no_events: 'No suitable events were found for this period.'
+    no_events: 'This digest contains 0 events.'
     essence: Summary
     consequences: Consequences
     sources: Sources

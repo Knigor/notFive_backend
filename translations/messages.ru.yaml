@@ -111,7 +111,7 @@ digest_export:
     count_one: 'В выпуске одно событие.'
     count_few: 'В выпуске %count% события.'
     count_many: 'В выпуске %count% событий.'
-    no_events: 'Подходящих событий за период нет.'
+    no_events: 'В выпуск включено 0 событий.'
     essence: Суть
     consequences: Последствия
     sources: Источники

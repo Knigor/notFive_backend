@@ -166,7 +166,7 @@ func TestCollectionRequiresAuthenticationAndValidInput(t *testing.T) {
 	}
 }
 
-func TestCollectionStopsAtTwelveAcceptedArticlesWithoutTruncation(t *testing.T) {
+func TestCollectionDoesNotApplySynthesisInputBudget(t *testing.T) {
 	candidates := []searchCandidate{}
 	for i := range 40 {
 		candidates = append(candidates, searchCandidate{URL: fmt.Sprintf("https://www.securitylab.ru/news/%d.php", 600000+i)})
@@ -185,9 +185,7 @@ func TestCollectionStopsAtTwelveAcceptedArticlesWithoutTruncation(t *testing.T) 
 	text := strings.Repeat("я", 12000)
 	cfg.SearchDomains = []string{"securitylab.ru"}
 	var active atomic.Int32
-	var fetched atomic.Int32
 	cfg.SourceFetcher = researchFetchFunc(func(_ context.Context, address string) (news.Article, error) {
-		fetched.Add(1)
 		current := active.Add(1)
 		defer active.Add(-1)
 		if current > 4 {
@@ -206,13 +204,8 @@ func TestCollectionStopsAtTwelveAcceptedArticlesWithoutTruncation(t *testing.T) 
 	if response.Code != 201 || run.Collection == nil || len(dataset.Items) != 40 {
 		t.Fatalf("large collection failed: status %d", response.Code)
 	}
-	if searches.Load() != 1 || fetched.Load() != 12 || len(run.Collection.Articles) != 12 || run.Collection.Counts.Accepted != 12 || run.Collection.Counts.Excluded != 28 || len(run.Collection.ExcludedArticles) != 28 {
-		t.Fatalf("collection lost its accepted limit or remaining audit: counts=%+v fetches=%d", run.Collection.Counts, fetched.Load())
-	}
-	for _, article := range run.Collection.ExcludedArticles {
-		if article.Status != "not_processed" || article.Stage != "limit" || article.Error != "fetch_limit" {
-			t.Fatalf("unfetched candidate lacks explicit limit reason: %+v", article)
-		}
+	if searches.Load() != 1 || len(run.Collection.Articles) != 40 || run.Collection.Counts.Accepted != 40 || run.Collection.Counts.Excluded != 0 || len(run.Collection.ExcludedArticles) != 0 {
+		t.Fatalf("collection wrongly applied model input budget: counts=%+v articles=%d", run.Collection.Counts, len(run.Collection.Articles))
 	}
 	for i, article := range run.Collection.Articles {
 		if article.Text != text || dataset.Items[i].Text == nil || *dataset.Items[i].Text != text {

@@ -120,7 +120,7 @@ func newClient(cfg Config, analysis bool) (*Client, error) {
 		return nil, errors.New("MAX_OUTPUT_TOKENS must be 100..16000")
 	}
 	if cfg.Timeout == 0 {
-		cfg.Timeout = 180 * time.Second
+		cfg.Timeout = 300 * time.Second
 	}
 	if !analysis {
 		if len(cfg.Domains) < 1 || len(cfg.Domains) > 5 {

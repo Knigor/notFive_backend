@@ -19,7 +19,7 @@ services:
       YANDEX_EXPORT_MAX_OUTPUT_TOKENS: ${YANDEX_EXPORT_MAX_OUTPUT_TOKENS:-8000}
       YANDEX_BASE_URL: ${YANDEX_BASE_URL:-https://ai.api.cloud.yandex.net/v1}
       YANDEX_SEARCH_DOMAINS: ${YANDEX_SEARCH_DOMAINS:-securitylab.ru,xakep.ru,habr.com,ptsecurity.com,kaspersky.ru}
-      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-180s}
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-300s}
       MAX_CONCURRENT: ${MAX_CONCURRENT:-2}
       MAX_OUTPUT_TOKENS: ${MAX_OUTPUT_TOKENS:-8000}
     volumes:

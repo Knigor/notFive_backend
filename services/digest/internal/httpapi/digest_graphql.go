@@ -50,10 +50,23 @@ func (s *Server) PrepareDigest(ctx context.Context, input model.PrepareDigestInp
 	analyzed, analysisGeneration, err := analysis.Analyze(analysisCtx, s.cfg.AnalysisProvider, prepared)
 	analysisCancel()
 	run.Analysis.Generation = analysisGeneration
+	var reportReason string
 	if err != nil {
-		run.Status, run.Error, run.CompletedAt = "failed", err.Error(), time.Now().UTC()
-		_ = s.save(run)
-		return nil, err
+		run.Error = err.Error()
+		reportReason = analysisMessages["ru"]["report_failed"]
+		if errors.Is(err, context.DeadlineExceeded) {
+			reportReason = analysisMessages["ru"]["report_timeout"]
+		}
+		clear(analyzed.Groups)
+		analyzed.RecommendedOrder = []string{}
+		maps.DeleteFunc(analyzed.Excluded, func(id, _ string) bool {
+			_, excludedBeforeAnalysis := prepared.Excluded[id]
+			return !excludedBeforeAnalysis
+		})
+		for _, item := range prepared.Dataset.Items {
+			analyzed.Excluded[item.ID] = reportReason
+		}
+		analyzed.Warnings = append(analyzed.Warnings, reportReason)
 	}
 	run.Analysis.Result = &analyzed
 	slog.Info("digest analysis completed", "run_id", run.ID, "groups", len(analyzed.Groups), "selected_groups", len(analyzed.RecommendedOrder), "duration_ms", analysisGeneration.DurationMS)
@@ -70,12 +83,29 @@ func (s *Server) PrepareDigest(ctx context.Context, input model.PrepareDigestInp
 	draftCancel()
 	run.Export.Generation = draftGeneration
 	if err != nil {
-		run.Status, run.Error, run.CompletedAt = "failed", err.Error(), time.Now().UTC()
-		_ = s.save(run)
-		return nil, err
+		run.Error = err.Error()
+		reportReason = exportMessages["ru"]["report_failed"]
+		if errors.Is(err, context.DeadlineExceeded) {
+			reportReason = exportMessages["ru"]["report_timeout"]
+		}
+		for _, groupID := range validated.RecommendedOrder {
+			for _, id := range validated.Groups[groupID].IDs {
+				validated.Excluded[id] = reportReason
+			}
+		}
+		validated.RecommendedOrder = []string{}
+		draft.Events = []export.EventText{}
+		draft.Warnings = append(draft.Warnings, reportReason)
+	}
+	if reportReason != "" {
+		draft.SelectionSummary = reportReason
 	}
 	run.Export.Result = &draft
 	run.Status, run.CompletedAt = "completed", time.Now().UTC()
+	if run.Error != "" {
+		run.Status = "partial"
+		slog.Warn("returning digest report after model failure", "run_id", run.ID, "error", run.Error)
+	}
 	if err := s.save(run); err != nil {
 		return nil, fmt.Errorf("save digest audit: %w", err)
 	}
@@ -110,8 +140,10 @@ func (s *Server) PrepareDigest(ctx context.Context, input model.PrepareDigestInp
 		}
 		result.Groups = append(result.Groups, converted)
 	}
-	for _, id := range slices.Sorted(maps.Keys(validated.Excluded)) {
-		result.Excluded = append(result.Excluded, &model.DigestExclusion{ArticleID: id, Reason: validated.Excluded[id]})
+	for _, item := range dataset.Items {
+		if reason, excluded := validated.Excluded[item.ID]; excluded {
+			result.Excluded = append(result.Excluded, &model.DigestExclusion{ArticleID: item.ID, Reason: reason})
+		}
 	}
 	for _, event := range draft.Events {
 		result.Events = append(result.Events, &model.DigestEvent{GroupID: event.GroupID, Title: event.Title, Summary: event.Summary, Consequences: event.Consequences, Post: event.Post, Reason: event.Reason})

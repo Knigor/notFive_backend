@@ -1,4 +1,6 @@
 {
+  "report_failed": "The model did not prepare the digest text. Material decisions are recorded in the journal.",
+  "report_timeout": "Draft generation timed out. Material decisions are recorded in the journal.",
   "unavailable": "The export model is not configured on the server.",
   "unauthorized": "A service Bearer token is required.",
   "busy": "All processing slots are busy. Try again later.",

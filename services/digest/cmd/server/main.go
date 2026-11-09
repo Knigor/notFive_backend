@@ -52,7 +52,7 @@ func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
 		return healthcheck(addr)
 	}
-	timeout, err := time.ParseDuration(env("REQUEST_TIMEOUT", "180s"))
+	timeout, err := time.ParseDuration(env("REQUEST_TIMEOUT", "300s"))
 	if err != nil {
 		return errors.New("invalid REQUEST_TIMEOUT")
 	}

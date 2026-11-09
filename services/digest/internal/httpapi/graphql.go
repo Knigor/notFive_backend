@@ -50,14 +50,23 @@ func (s *Server) Collect(ctx context.Context, input model.CollectInput) (*model.
 	run, err := s.collectRun(ctx, researchRequest{ControlTime: control.Format(time.RFC3339), Query: collectionQuery}, domains)
 	run.CompletedAt = time.Now().UTC()
 	if err != nil {
-		run.Status = "failed"
-		run.Error = "Collection failed"
+		run.Status, run.Error = "partial", err.Error()
+		run.Research.Status = "partial"
+		warning := "Поиск не завершился. В журнале сохранены полученные результаты."
+		if errors.Is(err, context.DeadlineExceeded) {
+			warning = "Истекло время сбора. В журнале сохранены результаты и непроверенные ссылки."
+		}
+		run.Research.Warnings = append(run.Research.Warnings, warning)
+		if run.Collection == nil {
+			run.Research.SearchAttempts[0].Error = err.Error()
+			run.Collection = collectArticles(nil, run.Research)
+		} else {
+			run.Collection.Warnings = append(run.Collection.Warnings, warning)
+		}
+		slog.Warn("returning partial collection", "run_id", run.ID, "error", err)
 	}
 	if saveErr := s.save(run); saveErr != nil {
 		return nil, fmt.Errorf("save collection: %w", saveErr)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("collection %s failed: %w", run.ID, err)
 	}
 	logCollectionSummary(run)
 	return resultFromRun(run, input.Kind), nil

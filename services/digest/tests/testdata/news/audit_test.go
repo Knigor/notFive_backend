@@ -61,54 +61,35 @@ func TestSourceHTTPFailureAuditContainsStatus(t *testing.T) {
 	}
 }
 
-func TestDiscoveryRecordsListingsForeignURLsAndBudgetDecisions(t *testing.T) {
+func TestDiscoveryKeepsAllArticleLinksAndRejectsListingsAndForeignURLs(t *testing.T) {
 	body := `<a href="/tags/security/">catalog</a><a href="https://foreign.example/article">foreign</a>`
 	for i := range 63 {
 		body += fmt.Sprintf(`<a href="/news/%d.html">publication</a>`, i)
 	}
 	report, err := discoveryFixture("3dnews.ru", "text/html", body).DiscoverDetailed(t.Context(), "https://3dnews.ru/security")
-	if err != nil || len(report.Links) != 60 || len(report.Rejected) != 5 {
+	if err != nil || len(report.Links) != 63 || len(report.Rejected) != 2 {
 		t.Fatalf("lost discovery decisions: %+v %v", report, err)
 	}
 	counts := map[string]int{}
 	for _, rejected := range report.Rejected {
 		counts[rejected.Code]++
 	}
-	if counts["listing_page"] != 1 || counts["untrusted_url"] != 1 || counts["discovery_limit"] != 3 {
+	if counts["listing_page"] != 1 || counts["untrusted_url"] != 1 || counts["discovery_limit"] != 0 {
 		t.Fatalf("wrong rejection reasons: %v", counts)
 	}
 }
 
-func TestDiscoveryAuditBoundsHTMLAndFeedInspectedLinksAndReportsOmissions(t *testing.T) {
-	for _, contentType := range []string{"text/html", "application/rss+xml"} {
-		t.Run(contentType, func(t *testing.T) {
-			var body strings.Builder
-			if contentType == "application/rss+xml" {
-				body.WriteString("<rss><channel>")
-			}
-			for i := range 2000 {
-				if contentType == "text/html" {
-					fmt.Fprintf(&body, `<a href="/news/%d.html">publication</a>`, i)
-				} else {
-					fmt.Fprintf(&body, `<item><link>https://3dnews.ru/news/%d.html</link></item>`, i)
-				}
-			}
-			if contentType == "application/rss+xml" {
-				body.WriteString("</channel></rss>")
-			}
-			report, err := discoveryFixture("3dnews.ru", contentType, body.String()).DiscoverDetailed(t.Context(), "https://3dnews.ru/security")
-			if err != nil || len(report.Links) != 60 || len(report.Rejected) != 240 || report.InspectedLinks != 300 || report.UninspectedLinks != 1700 {
-				t.Fatalf("unbounded or silently incomplete discovery: links=%d rejected=%d inspected=%d uninspected=%d err=%v", len(report.Links), len(report.Rejected), report.InspectedLinks, report.UninspectedLinks, err)
-			}
-			if report.Links[0].URL != "https://3dnews.ru/news/0.html" || report.Links[59].URL != "https://3dnews.ru/news/59.html" {
-				t.Fatal("bounded audit dropped already discovered candidates")
-			}
-			for _, rejected := range report.Rejected {
-				if rejected.Code != "discovery_limit" {
-					t.Fatalf("budget rejection lost its reason: %+v", rejected)
-				}
-			}
-		})
+func TestDiscoveryAuditInspectsAllLinksInTheFetchedDocument(t *testing.T) {
+	var body strings.Builder
+	for i := range 2000 {
+		fmt.Fprintf(&body, `<a href="/news/%d.html">publication</a>`, i)
+	}
+	report, err := discoveryFixture("3dnews.ru", "text/html", body.String()).DiscoverDetailed(t.Context(), "https://3dnews.ru/security")
+	if err != nil || len(report.Links) != 2000 || len(report.Rejected) != 0 || report.InspectedLinks != 2000 || report.UninspectedLinks != 0 {
+		t.Fatalf("silently incomplete discovery: links=%d rejected=%d inspected=%d uninspected=%d err=%v", len(report.Links), len(report.Rejected), report.InspectedLinks, report.UninspectedLinks, err)
+	}
+	if report.Links[0].URL != "https://3dnews.ru/news/0.html" || report.Links[1999].URL != "https://3dnews.ru/news/1999.html" {
+		t.Fatal("audit dropped discovered candidates")
 	}
 }
 

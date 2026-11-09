@@ -62,8 +62,8 @@ final readonly class GoRunDispatcher
             $response = $this->client->request('POST', rtrim($this->goServiceUrl, '/').'/graphql', [
                 'auth_bearer' => $this->digestServiceToken,
                 'json' => ['query' => self::PREPARE_DOCUMENT, 'variables' => ['input' => ['controlTime' => $controlTime, 'items' => $items]]],
-                'timeout' => 400,
-                'max_duration' => 420,
+                'timeout' => 620,
+                'max_duration' => 630,
             ]);
             $body = json_decode($response->getContent(false), true, 512, JSON_THROW_ON_ERROR);
 
@@ -91,8 +91,8 @@ final readonly class GoRunDispatcher
             $response = $this->client->request('POST', rtrim($this->goServiceUrl, '/').'/graphql', [
                 'auth_bearer' => $this->digestServiceToken,
                 'json' => ['query' => self::DOCUMENT, 'variables' => ['input' => $input]],
-                'timeout' => 200,
-                'max_duration' => 210,
+                'timeout' => 320,
+                'max_duration' => 330,
             ]);
 
             $body = json_decode($response->getContent(false), true, 512, JSON_THROW_ON_ERROR);
