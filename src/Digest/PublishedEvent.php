@@ -14,6 +14,7 @@ final readonly class PublishedEvent
         public string $summary,
         public string $consequences,
         public array $sources,
+        public string $selectionReason,
     ) {
     }
 }

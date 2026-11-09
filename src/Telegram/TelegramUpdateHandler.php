@@ -188,10 +188,6 @@ final readonly class TelegramUpdateHandler
             return;
         }
 
-        $this->telegram->sendMessage(
-            $chatId,
-            $this->messages->event($event, $subscription['locale']),
-            $this->messages->backButton($subscription['locale']),
-        );
+        $this->digestSender->sendEvent($chatId, $event, $subscription['locale']);
     }
 }
