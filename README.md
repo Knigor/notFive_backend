@@ -360,3 +360,39 @@ SMTP и транзакция БД не атомарны: авария после
 запуска экран диагностики может восстановить дополнительные отказы из
 `settings_snapshot.go_collection.researchJson`. Стадии Symfony пишутся в канал
 `digest_run` на stderr с ID запуска и Go collection/preparation ID.
+
+Административный `runStatistics(runId: ID!): RunStatistics` на `/api/graphql`
+даёт данные для графиков админки. Нужен обычный `Authorization: Bearer` JWT
+администратора. Несуществующий или некорректный UUID возвращает `null`.
+
+```graphql
+query RunStatistics($runId: ID!) {
+  runStatistics(runId: $runId) {
+    runId status inputMode queueDurationMs
+    counts { candidates collected imported included merged excluded events }
+    exclusions { code stage site count }
+    calls { stage attempt model durationMs inputTokens outputTokens }
+    discoverySources {
+      url site kind attempted found inspectedLinks uninspectedLinks outsideWindow error
+    }
+    evidence { stage available exact normalized notFound other }
+    search { modelAttempts webSearchCalls traceAvailable }
+    warnings
+  }
+}
+```
+
+Метрики берутся из БД и сохранённого Go-аудита через защищённый `GET /v1/runs/{id}`.
+Чтение не запускает поиск, модель, публикацию или рассылку. Промпты, тексты статей
+и исходная трасса провайдера в ответ не включаются. При недоступном аудите остаются
+счётчики из БД и сохранённые `model_calls`; отсутствующие показатели возвращаются
+как `null`/`available: false` с предупреждением.
+
+`durationMs` — время вызова модели, а не всего этапа с загрузкой и сохранением.
+`queueDurationMs` — разность `started_at` и `created_at`. Входные и выходные токены
+показываются отдельно: провайдер может учитывать токены инструментов дополнительно.
+Вызовы Web Search считаются только по доступной трассе, это не счёт биллинга.
+Проверки цитат анализа и экспорта — отдельные серии, не число уникальных фактов.
+`feed` обозначает RSS/Atom, `html` — разбор раздела сайта; `attempted: false`
+означает плановый источник без сохранённой попытки. В файловом сценарии этап
+сбора пропущен. Счётчик событий имеет другую единицу, чем счётчики материалов.

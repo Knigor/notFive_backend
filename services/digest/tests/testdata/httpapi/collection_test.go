@@ -168,7 +168,7 @@ func TestCollectionRequiresAuthenticationAndValidInput(t *testing.T) {
 
 func TestCollectionDoesNotApplySynthesisInputBudget(t *testing.T) {
 	candidates := []searchCandidate{}
-	for i := range 12 {
+	for i := range 40 {
 		candidates = append(candidates, searchCandidate{URL: fmt.Sprintf("https://www.securitylab.ru/news/%d.php", 600000+i)})
 	}
 	raw, err := json.Marshal(map[string]any{"candidates": candidates})
@@ -184,7 +184,14 @@ func TestCollectionDoesNotApplySynthesisInputBudget(t *testing.T) {
 	control := time.Date(2026, 11, 8, 13, 48, 16, 0, time.FixedZone("MSK", 3*60*60))
 	text := strings.Repeat("я", 12000)
 	cfg.SearchDomains = []string{"securitylab.ru"}
+	var active atomic.Int32
 	cfg.SourceFetcher = researchFetchFunc(func(_ context.Context, address string) (news.Article, error) {
+		current := active.Add(1)
+		defer active.Add(-1)
+		if current > 4 {
+			t.Errorf("article fetch concurrency exceeded four workers: %d", current)
+		}
+		time.Sleep(time.Millisecond)
 		return news.Article{URL: address, Title: "Publication", Text: text, PublishedAt: control, DateEvidence: "HTML datePublished"}, nil
 	})
 	server, err := New(cfg, provider)
@@ -194,10 +201,10 @@ func TestCollectionDoesNotApplySynthesisInputBudget(t *testing.T) {
 	response := call(server, "POST", "/v1/collect", `{"control_time":"2026-11-08T13:48:16+03:00","query":"ИБ"}`, serviceToken)
 	dataset := decodeNewsDataset(t, response)
 	run := savedRunFromCollection(t, server, response)
-	if response.Code != 201 || run.Collection == nil || len(dataset.Items) != 12 {
+	if response.Code != 201 || run.Collection == nil || len(dataset.Items) != 40 {
 		t.Fatalf("large collection failed: status %d", response.Code)
 	}
-	if searches.Load() != 1 || len(run.Collection.Articles) != 12 || run.Collection.Counts.Accepted != 12 || run.Collection.Counts.Excluded != 0 || len(run.Collection.ExcludedArticles) != 0 {
+	if searches.Load() != 1 || len(run.Collection.Articles) != 40 || run.Collection.Counts.Accepted != 40 || run.Collection.Counts.Excluded != 0 || len(run.Collection.ExcludedArticles) != 0 {
 		t.Fatalf("collection wrongly applied model input budget: counts=%+v articles=%d", run.Collection.Counts, len(run.Collection.Articles))
 	}
 	for i, article := range run.Collection.Articles {

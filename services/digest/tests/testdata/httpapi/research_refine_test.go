@@ -31,16 +31,15 @@ func TestResearchRefinesListingsOnceAndUsesOnlyUniqueArticleTexts(t *testing.T) 
 		}
 		_, raw, found := strings.Cut(input, "\n")
 		var plan struct {
-			Start     string   `json:"window_start_exclusive"`
-			End       string   `json:"window_end_inclusive"`
-			Queries   []string `json:"site_queries"`
-			Seen      []string `json:"already_seen_urls"`
-			Remaining int      `json:"max_candidates"`
+			Start   string   `json:"window_start_exclusive"`
+			End     string   `json:"window_end_inclusive"`
+			Queries []string `json:"site_queries"`
+			Seen    []string `json:"already_seen_urls"`
 		}
-		if !found || json.Unmarshal([]byte(raw), &plan) != nil {
+		if !found || json.Unmarshal([]byte(raw), &plan) != nil || strings.Contains(raw, "max_candidates") {
 			t.Fatal("invalid refinement plan")
 		}
-		if plan.Start != "2026-11-07T13:48:16+03:00" || plan.End != "2026-11-08T13:48:16+03:00" || len(plan.Queries) != 5 || len(plan.Seen) != 4 || !slices.Contains(plan.Seen, firstURL) || plan.Remaining != 11 {
+		if plan.Start != "2026-11-07T13:48:16+03:00" || plan.End != "2026-11-08T13:48:16+03:00" || len(plan.Queries) != 5 || len(plan.Seen) != 4 || !slices.Contains(plan.Seen, firstURL) {
 			t.Fatalf("refinement lost original window or seen URLs: %+v", plan)
 		}
 		for _, query := range plan.Queries {

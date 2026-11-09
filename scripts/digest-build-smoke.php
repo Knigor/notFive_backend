@@ -250,4 +250,31 @@ file_put_contents($directory.'/news.json', json_encode([
         ['id' => 'A-2', 'title' => 'Материал без даты', 'text' => 'Дата публикации не указана.', 'source' => 'Example', 'url' => 'https://example.org/a-2', 'published_at' => null],
     ],
 ], JSON_THROW_ON_ERROR));
+
+// A relevant group may remain outside the selected digest; keep the model's reason.
+$selectionRunId = '00000000-0000-4000-8000-000000000006';
+$connection->insert('runs', ['id' => $selectionRunId, 'control_time' => '2026-11-06T10:00:00+03:00', 'status' => 'queued', 'settings_snapshot' => '{"dataset":"selection-smoke"}', 'created_at' => '2026-11-06T10:04:00+03:00']);
+$connection->insert('run_inputs', ['id' => 'input-6', 'run_id' => $selectionRunId, 'kind' => 'dataset', 'locator' => '/tmp/selection-smoke.json', 'status' => 'completed']);
+foreach ($repository->materials($runId) as $material) {
+    $connection->insert('materials', [...$material, 'id' => 'selection-'.$material['id'], 'run_id' => $selectionRunId, 'run_input_id' => 'input-6']);
+}
+$connection->insert('materials', [
+    'id' => 'selection-material-3', 'run_id' => $selectionRunId, 'run_input_id' => 'input-6', 'input_id' => 'A-3',
+    'title' => 'Новая защитная мера', 'body' => 'Защитная мера вступит в силу через год.', 'source_name' => 'Example',
+    'url' => 'https://example.org/a-3', 'published_at' => '2026-11-06T08:00:00+03:00', 'input_missing' => '[]', 'source_error' => null,
+]);
+$unselectedReason = 'Защитная мера относится к ИБ, но исправление уже используемой уязвимости требует более срочного внимания.';
+$selectionResponse = $response;
+$selectionResponse['groups'][] = [
+    'id' => 'G2', 'name' => 'Новая защитная мера', 'ids' => ['A-3'], 'selectionReason' => $unselectedReason,
+    'facts' => [['statement' => 'Мера начнёт действовать через год.', 'sourceIds' => ['A-3'], 'evidence' => [['articleId' => 'A-3', 'quote' => 'Защитная мера вступит в силу через год.']]]], 'contradictions' => [],
+];
+$selectionClient = new MockHttpClient(new MockResponse(json_encode(['data' => ['prepareDigest' => $selectionResponse]], JSON_THROW_ON_ERROR)));
+$selectionBuilder = new DigestBuilder($repository, new GoRunDispatcher($selectionClient, new NullLogger(), 'http://digest', 'test-token'), new DigestRenderer($repository, $translator), $connection, Validation::createValidatorBuilder()->enableAttributeMapping()->getValidator(), $translator, new NullLogger());
+$selectionBuilder->build($selectionRunId);
+assert('excluded' === $connection->fetchOne("SELECT journal_status FROM materials WHERE id = 'selection-material-3'"));
+assert($unselectedReason === $connection->fetchOne("SELECT journal_reason FROM materials WHERE id = 'selection-material-3'"));
+assert('Нет даты публикации.' === $connection->fetchOne("SELECT journal_reason FROM materials WHERE id = 'selection-material-2'"));
+assert(1 === (int) $connection->fetchOne('SELECT COUNT(*) FROM events WHERE run_id = :id', ['id' => $selectionRunId]));
+assert(str_contains((string) $connection->fetchOne("SELECT content FROM artifacts WHERE run_id = :id AND kind = 'journal'", ['id' => $selectionRunId]), $unselectedReason));
 echo "Digest build smoke passed. Output: $directory\n";

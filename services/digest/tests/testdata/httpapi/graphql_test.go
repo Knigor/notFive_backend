@@ -9,12 +9,17 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/Knigor/notFive_backend/services/digest/graph"
+	"github.com/Knigor/notFive_backend/services/digest/graph/model"
+	"github.com/Knigor/notFive_backend/services/digest/internal/analysis"
 	"github.com/Knigor/notFive_backend/services/digest/internal/collector"
+	"github.com/Knigor/notFive_backend/services/digest/internal/news"
 )
 
 func TestGraphQLCollectDatasetAndSites(t *testing.T) {
@@ -127,6 +132,86 @@ func TestGraphQLPrepareDigestReturnsStructuredFields(t *testing.T) {
 	}
 	if strings.Contains(response.Body.String(), `"files"`) {
 		t.Fatal("GraphQL returned ready files")
+	}
+}
+
+func TestGraphQLCollectPreservesDifferentSourcesOfOneEvent(t *testing.T) {
+	addresses := []string{pipelineTestURL, "https://3dnews.ru/news/one.html"}
+	ids := []string{candidateID(addresses[0]), candidateID(addresses[1])}
+	search := providerFunc(func(context.Context, string, string) (collector.Generation, error) {
+		// The same URL twice is one material, but another publisher remains a
+		// separate source even with identical text and headline.
+		raw, _ := json.Marshal(map[string]any{"candidates": []searchCandidate{{URL: addresses[0]}, {URL: addresses[0]}, {URL: addresses[1]}}})
+		return collector.Generation{Text: string(raw)}, nil
+	})
+	_, cfg := newServer(t, search)
+	cfg.SearchDomains = []string{"securitylab.ru", "3dnews.ru"}
+	var fetched atomic.Int32
+	cfg.SourceFetcher = researchFetchFunc(func(_ context.Context, address string) (news.Article, error) {
+		fetched.Add(1)
+		return news.Article{URL: address, Title: "Исправление уязвимости", Text: pipelineTestText, PublishedAt: time.Date(2026, 11, 8, 9, 0, 0, 0, time.UTC)}, nil
+	})
+	cfg.AnalysisProvider = providerFunc(func(_ context.Context, _, input string) (collector.Generation, error) {
+		var body struct {
+			Items []analysis.Item `json:"untrusted_items"`
+		}
+		if json.Unmarshal([]byte(input), &body) != nil || len(body.Items) != 2 {
+			t.Fatal("analysis lost a distinct publication before model selection")
+		}
+		for i, item := range body.Items {
+			if item.ID != ids[i] || item.URL != addresses[i] || item.Text == nil || *item.Text != pipelineTestText {
+				t.Fatalf("analysis changed source %d: %+v", i, item)
+			}
+		}
+		raw, _ := json.Marshal(map[string]any{
+			"groups": []map[string]any{{"id": "G1", "name": "Исправление уязвимости", "ids": ids,
+				"facts":          []map[string]any{{"statement": "Исправлена уязвимость", "source_ids": ids, "evidence": []map[string]string{{"article_id": ids[0], "quote": pipelineTestText}, {"article_id": ids[1], "quote": pipelineTestText}}}},
+				"contradictions": []any{}, "selection_reason": "Два источника об одном исправлении"}},
+			"recommended_order": []string{"G1"}, "excluded": []any{},
+		})
+		return collector.Generation{Text: string(raw)}, nil
+	})
+	cfg.ExportProvider = providerFunc(func(context.Context, string, string) (collector.Generation, error) {
+		return collector.Generation{Text: `{"selection_summary":"Одно событие из двух публикаций.","events":[{"group_id":"G1","title":"Исправление уязвимости","summary":"Два источника сообщили об исправлении.","consequences":"Доступно исправление.","post":"Исправлена уязвимость.","reason":"Есть исправление."}]}`}, nil
+	})
+	server, err := New(cfg, search)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gql := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{Collector: server}}))
+	gql.AddTransport(transport.POST{})
+	server.MountGraphQL(gql)
+	response := graphQLCall(server, `{"query":"mutation { collect(input:{kind:SITES,controlTime:\"2026-11-08T10:00:00Z\",sites:[\"https://securitylab.ru\",\"https://3dnews.ru\"]}) { runId articles { id title text source url publishedAt missing } excluded { id } researchJson } }"}`, serviceToken)
+	var collected struct {
+		Data   struct{ Collect model.CollectResult } `json:"data"`
+		Errors []any                                 `json:"errors"`
+	}
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &collected) != nil || len(collected.Errors) != 0 || len(collected.Data.Collect.Articles) != 2 || len(collected.Data.Collect.Excluded) != 0 || fetched.Load() != 2 {
+		t.Fatalf("collection discarded a source or duplicated a URL: %d %s, fetches=%d", response.Code, response.Body.String(), fetched.Load())
+	}
+	var research Research
+	if collected.Data.Collect.ResearchJSON == nil || json.Unmarshal([]byte(*collected.Data.Collect.ResearchJSON), &research) != nil || len(research.CandidateAudit) != 2 || len(research.Sources) != 2 {
+		t.Fatal("collection audit does not contain one decision per unique material")
+	}
+	items := make([]*model.MaterialInput, 0, 2)
+	for _, article := range collected.Data.Collect.Articles {
+		items = append(items, &model.MaterialInput{ID: article.ID, Title: article.Title, Text: article.Text, Source: article.Source, URL: article.URL, PublishedAt: article.PublishedAt, Missing: article.Missing})
+	}
+	body, _ := json.Marshal(map[string]any{
+		"query":     `mutation($input: PrepareDigestInput!) { prepareDigest(input:$input) { groups { id ids facts { sourceIds evidence { articleId quote } } } recommendedOrder excluded { articleId } events { groupId } } }`,
+		"variables": map[string]any{"input": model.PrepareDigestInput{ControlTime: "2026-11-08T10:00:00Z", Items: items}},
+	})
+	response = graphQLCall(server, string(body), serviceToken)
+	var prepared struct {
+		Data   struct{ PrepareDigest model.PreparedDigest } `json:"data"`
+		Errors []any                                        `json:"errors"`
+	}
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &prepared) != nil || len(prepared.Errors) != 0 {
+		t.Fatalf("prepareDigest failed: %d %s", response.Code, response.Body.String())
+	}
+	result := prepared.Data.PrepareDigest
+	if len(result.Groups) != 1 || !slices.Equal(result.Groups[0].Ids, ids) || !slices.Equal(result.RecommendedOrder, []string{"G1"}) || len(result.Excluded) != 0 || len(result.Events) != 1 || result.Events[0].GroupID != "G1" {
+		t.Fatalf("one model event lost its two source IDs: %s", response.Body.String())
 	}
 }
 

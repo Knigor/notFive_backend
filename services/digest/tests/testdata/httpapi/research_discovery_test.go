@@ -132,7 +132,7 @@ func TestResearchDiscoveryPrioritizesFreshFeedAndStillVerifiesHTMLDate(t *testin
 	}
 }
 
-func TestResearchDiscoveryRoundRobinKeepsOtherSourcesWithinArticleBudget(t *testing.T) {
+func TestResearchDiscoveryRoundRobinCollectsAllSources(t *testing.T) {
 	control := time.Date(2026, 11, 8, 13, 48, 16, 0, time.FixedZone("MSK", 3*60*60))
 	provider := providerFunc(func(_ context.Context, _, _ string) (collector.Generation, error) {
 		return collector.Generation{Text: `{"candidates":[]}`}, nil
@@ -167,7 +167,7 @@ func TestResearchDiscoveryRoundRobinKeepsOtherSourcesWithinArticleBudget(t *test
 		t.Fatalf("status %d: %s", response.Code, response.Body.String())
 	}
 	run := savedRunFromCollection(t, server, response)
-	if len(run.Research.Sources) != 12 || !slices.ContainsFunc(run.Research.Sources, func(s ResearchSource) bool { return s.URL == "https://habr.com/ru/news/1105010/" }) {
+	if len(run.Research.Sources) != 21 || !slices.ContainsFunc(run.Research.Sources, func(s ResearchSource) bool { return s.URL == "https://habr.com/ru/news/1105010/" }) {
 		t.Fatalf("large first feed crowded out another source: %+v", run.Research.Sources)
 	}
 }

@@ -25,6 +25,12 @@ Query:
                     runId: ID!
                 resolve: '@=query("App\\GraphQL\\Query\\RunStatusQuery::runStatus", args["runId"])'
                 complexity: '@=childrenComplexity + 1'
+            runStatistics:
+                type: RunStatistics
+                args:
+                    runId: ID!
+                resolve: '@=query("App\\GraphQL\\Query\\RunStatisticsQuery::runStatistics", args["runId"])'
+                complexity: '@=childrenComplexity + 1'
 
 RunStatus:
     type: object

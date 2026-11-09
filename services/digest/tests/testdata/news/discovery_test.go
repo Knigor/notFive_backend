@@ -75,14 +75,24 @@ func TestDiscoveryDatesRequireTimeAndUnambiguousTimezone(t *testing.T) {
 	}
 }
 
-func TestDiscoverLimitsLinksAndRejectsMalformedOrOversizedDocuments(t *testing.T) {
+func TestDiscoverKeepsAllLinksAndRejectsMalformedOrOversizedDocuments(t *testing.T) {
 	var body strings.Builder
 	for i := range 100 {
 		fmt.Fprintf(&body, `<a href="/news/%d.php">article</a>`, i)
 	}
 	got, err := discoveryFixture("securitylab.ru", "text/html", body.String()).Discover(t.Context(), "https://www.securitylab.ru/news/")
-	if err != nil || len(got) != maxDiscoveredLinks {
-		t.Fatalf("limit: %d %v", len(got), err)
+	if err != nil || len(got) != 100 {
+		t.Fatalf("discovery dropped links: %d %v", len(got), err)
+	}
+	body.Reset()
+	body.WriteString("<rss><channel>")
+	for i := range 100 {
+		fmt.Fprintf(&body, `<item><link>https://www.securitylab.ru/news/%d.php</link></item>`, i)
+	}
+	body.WriteString("</channel></rss>")
+	got, err = discoveryFixture("securitylab.ru", "application/rss+xml", body.String()).Discover(t.Context(), "https://www.securitylab.ru/feed/")
+	if err != nil || len(got) != 100 {
+		t.Fatalf("feed discovery dropped links: %d %v", len(got), err)
 	}
 	for _, body := range []string{`<rss><channel>`, strings.Repeat("x", maxBodyBytes+1), `<!DOCTYPE rss [<!ENTITY secret SYSTEM "file:///etc/passwd">]><rss><channel><item><link>&secret;</link></item></channel></rss>`} {
 		if _, err := discoveryFixture("securitylab.ru", "application/rss+xml", body).Discover(t.Context(), "https://securitylab.ru/feed/"); !errors.Is(err, ErrUnavailable) {

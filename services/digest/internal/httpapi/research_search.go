@@ -23,7 +23,7 @@ type RejectedResearchCandidate struct {
 	Reason string `json:"reason"`
 }
 
-func researchSearchInput(control time.Time, topic string, domains []string, seenURLs []string, remaining int) string {
+func researchSearchInput(control time.Time, topic string, domains []string, seenURLs []string) string {
 	start := control.Add(-24 * time.Hour)
 	queries := make([]string, 0, len(domains))
 	for _, domain := range domains {
@@ -31,7 +31,7 @@ func researchSearchInput(control time.Time, topic string, domains []string, seen
 	}
 	input := map[string]any{
 		"window_start_exclusive": start.Format(time.RFC3339Nano), "window_end_inclusive": control.Format(time.RFC3339Nano),
-		"untrusted_topic": topic, "allowed_domains": domains, "site_queries": queries, "max_candidates": remaining,
+		"untrusted_topic": topic, "allowed_domains": domains, "site_queries": queries,
 	}
 	if len(seenURLs) > 0 {
 		input["already_seen_urls"] = seenURLs
@@ -73,7 +73,7 @@ func (s *Server) refineArticleSearch(ctx context.Context, control time.Time, top
 		seenURLs = append(seenURLs, clipResearchText(address, 2048))
 	}
 	slices.Sort(seenURLs)
-	input := researchSearchInput(control, topic, s.cfg.SearchDomains, seenURLs, maxResearchCandidates-len(research.Sources))
+	input := researchSearchInput(control, topic, s.cfg.SearchDomains, seenURLs)
 	gen, err := s.provider.Generate(ctx, researchInstructions, input)
 	attempt := ResearchSearchAttempt{ModelInput: input, Generation: gen, Candidates: []searchCandidate{}}
 	trace := Research{Generation: gen}

@@ -218,6 +218,7 @@ final readonly class DigestBuilder
             $selected = false;
             $primary = false;
             $reasons = [];
+            $unselectedReasons = [];
             foreach ($groups as $id => $group) {
                 if (!in_array($inputId, $group['ids'], true)) {
                     continue;
@@ -227,10 +228,13 @@ final readonly class DigestBuilder
                     $selected = true;
                     $primary = $primary || ($group['ids'][0] ?? null) === $inputId;
                     $reasons[] = $events[$id]['reason'];
+                } elseif ('' !== trim($group['selectionReason'])) {
+                    $unselectedReasons[] = $group['selectionReason'];
                 }
             }
             $status = $selected ? ($primary ? 'included' : 'merged') : 'excluded';
-            $reason = $selected ? implode(' ', array_unique($reasons)) : ($excluded[$inputId] ?? $this->translator->trans('digest_export.not_selected', locale: 'ru'));
+            $unselectedReason = [] === $unselectedReasons ? $this->translator->trans('digest_export.not_selected', locale: 'ru') : implode(' ', array_unique($unselectedReasons));
+            $reason = $selected ? implode(' ', array_unique($reasons)) : ($excluded[$inputId] ?? $unselectedReason);
             if ($selected && isset($excluded[$inputId])) {
                 $warnings[] = 'inclusion_exclusion_conflict:'.$inputId;
             }

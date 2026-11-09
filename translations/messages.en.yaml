@@ -139,3 +139,8 @@ run_diagnostics:
     collection_excluded: 'The material was excluded during collection.'
     collection_material_missing: 'Collection returned this material, but it was not saved for analysis; the older run has no recorded reason.'
     missing_analysis_decision: 'The run completed without a saved decision for this material.'
+
+run_statistics:
+    audit_unavailable: 'The detailed run audit is unavailable. Metrics saved in the database are shown.'
+    partial_metrics: 'Some metrics were not saved or are not available yet. Missing values are not treated as zero.'
+    discovery_error: 'The source could not be fully read.'

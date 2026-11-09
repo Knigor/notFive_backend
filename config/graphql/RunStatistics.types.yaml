@@ -1,0 +1,113 @@
+RunStatistics:
+    type: object
+    config:
+        fields:
+            runId:
+                type: ID!
+            status:
+                type: String!
+            inputMode:
+                type: String!
+            queueDurationMs:
+                type: Float
+            counts:
+                type: RunDiagnosticCounts!
+                complexity: '@=childrenComplexity + 1'
+            exclusions:
+                type: '[RunExclusionStatistic!]!'
+                complexity: '@=childrenComplexity * 200 + 1'
+            calls:
+                type: '[RunGenerationStatistic!]!'
+                complexity: '@=childrenComplexity * 20 + 1'
+            discoverySources:
+                type: '[RunDiscoveryStatistic!]!'
+                complexity: '@=childrenComplexity * 30 + 1'
+            evidence:
+                type: '[RunEvidenceStatistic!]!'
+                complexity: '@=childrenComplexity * 2 + 1'
+            search:
+                type: RunSearchStatistic!
+                complexity: '@=childrenComplexity + 1'
+            warnings:
+                type: '[String!]!'
+
+RunExclusionStatistic:
+    type: object
+    config:
+        fields:
+            code:
+                type: String!
+            stage:
+                type: String!
+            site:
+                type: String!
+            count:
+                type: Int!
+
+RunGenerationStatistic:
+    type: object
+    config:
+        fields:
+            stage:
+                type: String!
+            attempt:
+                type: Int!
+            model:
+                type: String
+            durationMs:
+                type: Float
+            inputTokens:
+                type: Float
+            outputTokens:
+                type: Float
+
+RunDiscoveryStatistic:
+    type: object
+    config:
+        fields:
+            url:
+                type: String!
+            site:
+                type: String!
+            kind:
+                type: String!
+            attempted:
+                type: Boolean!
+            found:
+                type: Int
+            inspectedLinks:
+                type: Int
+            uninspectedLinks:
+                type: Int
+            outsideWindow:
+                type: Int
+            error:
+                type: String
+
+RunEvidenceStatistic:
+    type: object
+    config:
+        fields:
+            stage:
+                type: String!
+            available:
+                type: Boolean!
+            exact:
+                type: Int!
+            normalized:
+                type: Int!
+            notFound:
+                type: Int!
+            other:
+                type: Int!
+
+RunSearchStatistic:
+    type: object
+    config:
+        fields:
+            modelAttempts:
+                type: Int!
+            webSearchCalls:
+                type: Int
+            traceAvailable:
+                type: Boolean!

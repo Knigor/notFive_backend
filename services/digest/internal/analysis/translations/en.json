@@ -13,7 +13,7 @@
   "unverified_fact": "Group %s contains a fact without a statement, article references, or verbatim evidence.",
   "unverified_quote": "A quote in group %s for material %s is not verbatim or does not reference a source of the fact.",
   "unknown_excluded": "The model excluded unknown material %s.",
-  "model_omitted_item": "The model did not account for the material; another analysis is needed.",
-  "unassigned_item": "The model skipped material %s; it was recorded with a technical exclusion reason.",
+  "model_omitted_item": "Incomplete analysis: the model did not report a decision about the material. This does not mean the material is irrelevant; another analysis is needed.",
+  "unassigned_item": "The model skipped material %s. This is an incomplete model decision, not a finding that the material is irrelevant.",
   "no_selected_events": "The model selected no events for the final digest; material decisions are in groups and exclusions."
 }

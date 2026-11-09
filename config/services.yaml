@@ -33,6 +33,11 @@ services:
             $goServiceUrl: '%env(GO_SERVICE_URL)%'
             $digestServiceToken: '%env(DIGEST_SERVICE_TOKEN)%'
 
+    App\Run\RunStatisticsAuditReader:
+        arguments:
+            $goServiceUrl: '%env(GO_SERVICE_URL)%'
+            $digestServiceToken: '%env(DIGEST_SERVICE_TOKEN)%'
+
     App\Security\AdminAuthenticator:
         arguments:
             $tokenTtl: '%admin_jwt_ttl%'

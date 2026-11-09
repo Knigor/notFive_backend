@@ -70,7 +70,7 @@ func TestCollectionUsesCitationArticlesAndReplenishesAfterDateRejection(t *testi
 	}
 }
 
-func TestCollectionFetchBudgetRecordsEveryUnprocessedURL(t *testing.T) {
+func TestCollectionFetchesEveryCandidateWithoutAFixedCountLimit(t *testing.T) {
 	candidates := []searchCandidate{}
 	for i := range 40 {
 		candidates = append(candidates, searchCandidate{URL: fmt.Sprintf("https://itweek.ru/security/article/detail.php?ID=%d", i)})
@@ -87,8 +87,8 @@ func TestCollectionFetchBudgetRecordsEveryUnprocessedURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	run, err := server.collectRun(t.Context(), researchRequest{ControlTime: "2026-11-09T09:09:00+03:00", Query: "news"}, cfg.SearchDomains)
-	if err != nil || run.Collection.Counts.Accepted != 0 || len(run.Collection.ExcludedArticles) != 40 || len(run.Research.ExcludedSources) != maxResearchFetches {
-		t.Fatalf("bad budget: %+v %v", run.Collection, err)
+	if err != nil || run.Collection.Counts.Accepted != 0 || len(run.Collection.ExcludedArticles) != 40 || len(run.Research.ExcludedSources) != 40 {
+		t.Fatalf("incomplete fetches: %+v %v", run.Collection, err)
 	}
 	unprocessed := 0
 	for _, entry := range run.Research.CandidateAudit {
@@ -96,8 +96,8 @@ func TestCollectionFetchBudgetRecordsEveryUnprocessedURL(t *testing.T) {
 			unprocessed++
 		}
 	}
-	if unprocessed != 16 || len(newsDataset(run.Collection, "ru").Items) != 40 {
-		t.Fatalf("missing budget decisions: %d", unprocessed)
+	if unprocessed != 0 || len(newsDataset(run.Collection, "ru").Items) != 40 {
+		t.Fatalf("unexpected count-based omissions: %d", unprocessed)
 	}
 }
 
@@ -163,8 +163,8 @@ func TestCollectionRefinementPrecedesStaleDiscoveryRemainder(t *testing.T) {
 	if err != nil || calls != 2 || len(run.Collection.Articles) != 1 || run.Collection.Articles[0].URL != fresh {
 		t.Fatalf("fresh refinement crowded out: %+v calls=%d err=%v", run.Collection, calls, err)
 	}
-	if len(run.Research.Sources)+len(run.Research.ExcludedSources) != 24 || len(run.Collection.ExcludedArticles) != 25 {
-		t.Fatalf("incorrect total budget/audit: %+v", run.Collection.Counts)
+	if len(run.Research.Sources)+len(run.Research.ExcludedSources) != 26 || len(run.Collection.ExcludedArticles) != 25 {
+		t.Fatalf("incomplete candidate audit: %+v", run.Collection.Counts)
 	}
 }
 
@@ -199,7 +199,7 @@ func TestCollectionCancellationIsNotReportedAsCandidateLimit(t *testing.T) {
 			}
 		}
 	}
-	if remaining != 8 {
+	if remaining != 16 {
 		t.Fatalf("pending candidates lost: %d", remaining)
 	}
 }
@@ -207,7 +207,7 @@ func TestCollectionCancellationIsNotReportedAsCandidateLimit(t *testing.T) {
 func TestCollectionCanonicalURLIsFetchedOnceAfterUnsafeVariant(t *testing.T) {
 	address := "https://3dnews.ru/news/one.html"
 	provider := providerFunc(func(context.Context, string, string) (collector.Generation, error) {
-		return collector.Generation{Text: `{"candidates":[{"url":"https://user:pass@3dnews.ru/news/one.html"},{"url":"https://3dnews.ru/news/one.html"},{"url":"https://3dnews.ru/news/one.html?utm_source=search"}]}`}, nil
+		return collector.Generation{Text: `{"candidates":[{"url":"https://user:pass@3dnews.ru/news/one.html"},{"url":"https://3dnews.ru/news/one.html"},{"url":"https://3dnews.ru/news/one.html"},{"url":"https://3dnews.ru/news/one.html?utm_source=search"},{"url":"https://3dnews.ru/news/one.html#comments"}]}`}, nil
 	})
 	_, cfg := newServer(t, provider)
 	cfg.SearchDomains = []string{"3dnews.ru"}
@@ -232,17 +232,17 @@ func TestCollectionCanonicalURLIsFetchedOnceAfterUnsafeVariant(t *testing.T) {
 	}
 }
 
-type boundedDiscoveryFetcher struct{ discoveryTestFetcher }
+type interruptedDiscoveryFetcher struct{ discoveryTestFetcher }
 
-func (boundedDiscoveryFetcher) DiscoverDetailed(context.Context, string) (news.DiscoveryResult, error) {
+func (interruptedDiscoveryFetcher) DiscoverDetailed(context.Context, string) (news.DiscoveryResult, error) {
 	return news.DiscoveryResult{Links: []news.DiscoveredLink{{URL: "https://3dnews.ru/news/one.html"}}, InspectedLinks: 300, UninspectedLinks: 1700}, nil
 }
-func TestResearchDiscoveryMakesScanLimitVisible(t *testing.T) {
+func TestResearchDiscoveryMakesInterruptedScanVisible(t *testing.T) {
 	domains := []string{"3dnews.ru"}
-	server := Server{cfg: Config{SearchDomains: domains}, fetcher: boundedDiscoveryFetcher{}}
+	server := Server{cfg: Config{SearchDomains: domains}, fetcher: interruptedDiscoveryFetcher{}}
 	research := Research{AllowedDomains: domains}
 	_, candidates := server.discoverResearchSources(t.Context(), &research, time.Now())
 	if len(candidates) != 1 || len(research.Discovery) != 1 || research.Discovery[0].UninspectedLinks != 1700 || len(research.Warnings) != 1 || !strings.Contains(research.Warnings[0], "1700") {
-		t.Fatalf("scan limit is silent: %+v", research)
+		t.Fatalf("interrupted scan is silent: %+v", research)
 	}
 }
