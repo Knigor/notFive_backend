@@ -12,10 +12,10 @@ telegram:
         body: "⚙️ Settings\n\n🔔 Subscription: %status%\n🌐 Language: English\n\nChoose a language or return to the menu."
     no_digest: "🗞️ The edition is being prepared.\n\nThe key security stories and their sources will appear here."
     no_event: "🔎 This story is unavailable right now.\n\nReturn to the menu and open the edition again."
-    text_shortened: "… A shortened version is shown."
     event:
         body: "🔎 %rank%. %title%\n\n%summary%\n\nWhat changed: %consequences%"
         sources: '↗ Sources:'
+        reason: 'Why it matters: %reason%'
     button:
         latest: "🗞️ Latest edition"
         subscribe: "🔔 Turn on updates"

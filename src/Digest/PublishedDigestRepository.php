@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Digest;
 
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 
 final readonly class PublishedDigestRepository
@@ -16,7 +17,7 @@ final readonly class PublishedDigestRepository
     {
         $runId = $this->latestRunId();
 
-        return null === $runId ? null : $this->find($runId);
+        return null === $runId ? null : $this->find($runId, withSources: true);
     }
 
     public function latestRunId(): ?string
@@ -32,7 +33,7 @@ final readonly class PublishedDigestRepository
         return false === $runId ? null : (string) $runId;
     }
 
-    public function find(string $runId): ?PublishedDigest
+    public function find(string $runId, bool $withSources = false): ?PublishedDigest
     {
         $row = $this->connection->fetchAssociative(<<<'SQL'
             SELECT post.id AS post_id, COALESCE(email.content, post.content) AS content, details.subject
@@ -49,20 +50,14 @@ final readonly class PublishedDigestRepository
         }
 
         $events = [];
-        $result = $this->connection->executeQuery(<<<'SQL'
-            SELECT id, rank, title, summary, consequences
+        $rows = $this->connection->fetchAllAssociative(<<<'SQL'
+            SELECT id, rank, title, summary, consequences, selection_reason
             FROM events WHERE run_id = :run_id ORDER BY rank LIMIT 5
             SQL, ['run_id' => $runId]);
+        $sources = $withSources ? $this->sources(array_map(static fn (array $row): string => (string) $row['id'], $rows)) : [];
 
-        foreach ($result->iterateAssociative() as $event) {
-            $events[] = new PublishedEvent(
-                (string) $event['id'],
-                (int) $event['rank'],
-                (string) $event['title'],
-                (string) $event['summary'],
-                (string) $event['consequences'],
-                [],
-            );
+        foreach ($rows as $event) {
+            $events[] = $this->toEvent($event, $sources[(string) $event['id']] ?? []);
         }
 
         return new PublishedDigest(
@@ -80,7 +75,7 @@ final readonly class PublishedDigestRepository
         }
 
         $event = $this->connection->fetchAssociative(<<<'SQL'
-            SELECT e.id, e.rank, e.title, e.summary, e.consequences
+            SELECT e.id, e.rank, e.title, e.summary, e.consequences, e.selection_reason
             FROM events e
             JOIN runs r ON r.id = e.run_id
             WHERE e.id = :event_id AND r.status = 'completed' AND r.published_at IS NOT NULL
@@ -91,21 +86,44 @@ final readonly class PublishedDigestRepository
             return null;
         }
 
+        return $this->toEvent($event, $this->sources([$eventId])[(string) $event['id']] ?? []);
+    }
+
+    /**
+     * @param list<string> $eventIds
+     *
+     * @return array<string, list<string>>
+     */
+    private function sources(array $eventIds): array
+    {
+        if ([] === $eventIds) {
+            return [];
+        }
+
         $sources = [];
         $result = $this->connection->executeQuery(<<<'SQL'
-            SELECT m.source_name, m.url
+            SELECT em.event_id, m.source_name, m.url
             FROM event_materials em
             JOIN materials m ON m.id = em.material_id
-            WHERE em.event_id = :event_id
+            WHERE em.event_id IN (:event_ids)
             ORDER BY em.is_primary_source DESC, m.source_name, m.id
-            SQL, ['event_id' => $eventId]);
+            SQL, ['event_ids' => $eventIds], ['event_ids' => ArrayParameterType::STRING]);
 
         foreach ($result->iterateAssociative() as $source) {
             $name = (string) ($source['source_name'] ?? '');
             $url = (string) ($source['url'] ?? '');
-            $sources[] = '' !== $url ? trim($name.' '.$url) : $name;
+            $sources[(string) $source['event_id']][] = '' !== $url ? trim($name.' '.$url) : $name;
         }
 
+        return $sources;
+    }
+
+    /**
+     * @param array<string, mixed> $event
+     * @param list<string>         $sources
+     */
+    private function toEvent(array $event, array $sources): PublishedEvent
+    {
         return new PublishedEvent(
             (string) $event['id'],
             (int) $event['rank'],
@@ -113,6 +131,7 @@ final readonly class PublishedDigestRepository
             (string) $event['summary'],
             (string) $event['consequences'],
             $sources,
+            (string) $event['selection_reason'],
         );
     }
 }
